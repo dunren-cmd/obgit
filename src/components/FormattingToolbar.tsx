@@ -261,20 +261,20 @@ export function FormattingToolbar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-card/30 overflow-x-auto">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 sm:py-1 border-b border-border bg-card/30 overflow-x-auto scrollbar-none touch-pan-x">
         {formatActions.map((action, index) => (
           <Tooltip key={index}>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                className="h-8 w-8 sm:h-7 sm:w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex-shrink-0 touch-manipulation"
                 onClick={() => applyFormat(action)}
               >
                 {action.icon}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">
+            <TooltipContent side="bottom" className="text-xs hidden sm:block">
               <p>{action.label}</p>
               {action.shortcut && (
                 <p className="text-muted-foreground">{action.shortcut}</p>
