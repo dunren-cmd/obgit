@@ -273,33 +273,38 @@ export function MarkdownEditor({
           <h2 className="font-medium text-foreground truncate max-w-xs">
             {file.name}
           </h2>
-          {hasChanges && (
-            <span className="text-xs text-warning">• 未儲存</span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Save Status */}
-          <div className="flex items-center gap-2 mr-2">
-            {saveStatus === "saving" && (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="status-dot saving" />
+          {/* 自動儲存狀態指示器 */}
+          <div className="flex items-center">
+            {saveStatus === "saving" ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" />
                 儲存中...
               </span>
-            )}
-            {saveStatus === "saved" && (
+            ) : saveStatus === "saved" ? (
               <span className="flex items-center gap-1.5 text-xs text-success animate-fade-in">
                 <Check className="w-3 h-3" />
                 已儲存
               </span>
-            )}
-            {saveStatus === "error" && (
+            ) : saveStatus === "error" ? (
               <span className="flex items-center gap-1.5 text-xs text-destructive animate-fade-in">
                 <AlertCircle className="w-3 h-3" />
                 儲存失敗
               </span>
+            ) : hasChanges ? (
+              <span className="flex items-center gap-1.5 text-xs text-warning">
+                <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
+                未儲存
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                無變更
+              </span>
             )}
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
 
           {/* Undo/Redo Buttons */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">

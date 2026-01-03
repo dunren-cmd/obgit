@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { FileNode } from "@/lib/github";
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus, Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FileIcon } from "@/components/FileIcon";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -224,7 +225,7 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level }: FileTreeNodeP
         ) : (
           <>
             <span className="w-4" />
-            <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <FileIcon fileName={node.name} />
           </>
         )}
         <span className="truncate text-sm">{node.name}</span>
