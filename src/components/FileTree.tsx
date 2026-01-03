@@ -27,7 +27,7 @@ interface FileTreeProps {
   onRefresh: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
-  onUploadFiles?: (files: File[]) => Promise<void>;
+  onUploadFiles?: (files: File[], targetFolder?: string) => Promise<void>;
   onDeleteFile?: (path: string, sha: string) => Promise<boolean>;
   onRenameFile?: (oldPath: string) => void;
   onMoveFile?: (sourcePath: string, targetPath: string) => Promise<boolean>;
@@ -178,8 +178,10 @@ export function FileTree({
                 onMoveFile={onMoveFile}
                 onCreateFileInFolder={onCreateFileInFolder}
                 onCreateFolderInFolder={onCreateFolderInFolder}
+                onUploadFiles={onUploadFiles}
                 dragOverPath={dragOverPath}
                 setDragOverPath={setDragOverPath}
+                setIsUploading={setIsUploading}
               />
             ))}
           </div>
@@ -220,8 +222,10 @@ interface FileTreeNodeProps {
   onMoveFile?: (sourcePath: string, targetPath: string) => Promise<boolean>;
   onCreateFileInFolder?: (folderPath: string) => void;
   onCreateFolderInFolder?: (folderPath: string) => void;
+  onUploadFiles?: (files: File[], targetFolder?: string) => Promise<void>;
   dragOverPath: string | null;
   setDragOverPath: (path: string | null) => void;
+  setIsUploading: (uploading: boolean) => void;
 }
 
 // 判斷是否為圖片檔案
@@ -241,8 +245,10 @@ function FileTreeNode({
   onMoveFile,
   onCreateFileInFolder,
   onCreateFolderInFolder,
+  onUploadFiles,
   dragOverPath,
   setDragOverPath,
+  setIsUploading,
 }: FileTreeNodeProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMoving, setIsMoving] = useState(false);
@@ -274,7 +280,7 @@ function FileTreeNode({
       e.dataTransfer.setData("application/x-image-url", imageUrl);
     }
     
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.effectAllowed = "copyMove";
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -283,7 +289,12 @@ function FileTreeNode({
     
     // 只有目錄可以接受拖放
     if (isDir) {
-      e.dataTransfer.dropEffect = "move";
+      // 判斷是本地檔案還是內部移動
+      if (e.dataTransfer.types.includes("Files")) {
+        e.dataTransfer.dropEffect = "copy";
+      } else {
+        e.dataTransfer.dropEffect = "move";
+      }
       setDragOverPath(node.path);
     }
   };
@@ -301,7 +312,23 @@ function FileTreeNode({
     e.stopPropagation();
     setDragOverPath(null);
 
-    if (!isDir || !onMoveFile) return;
+    if (!isDir) return;
+
+    // 檢查是否為本地檔案拖放
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0 && onUploadFiles) {
+      // 本地檔案上傳到此資料夾
+      setIsUploading(true);
+      try {
+        await onUploadFiles(droppedFiles, node.path);
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
+    // 內部檔案移動
+    if (!onMoveFile) return;
 
     const sourcePath = e.dataTransfer.getData("application/x-file-path");
     const fileName = e.dataTransfer.getData("application/x-file-name");
@@ -486,8 +513,10 @@ function FileTreeNode({
               onMoveFile={onMoveFile}
               onCreateFileInFolder={onCreateFileInFolder}
               onCreateFolderInFolder={onCreateFolderInFolder}
+              onUploadFiles={onUploadFiles}
               dragOverPath={dragOverPath}
               setDragOverPath={setDragOverPath}
+              setIsUploading={setIsUploading}
             />
           ))}
         </div>

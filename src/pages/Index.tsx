@@ -243,14 +243,15 @@ const Index = () => {
     }
   }, [service]);
 
-  const handleUploadFiles = useCallback(async (uploadedFiles: File[]): Promise<void> => {
+  const handleUploadFiles = useCallback(async (uploadedFiles: File[], targetFolder?: string): Promise<void> => {
     if (!service) return;
     try {
       for (const file of uploadedFiles) {
-        await service.uploadFile(file);
+        await service.uploadFile(file, targetFolder);
       }
       await refresh();
-      toast.success(`成功上傳 ${uploadedFiles.length} 個檔案`);
+      const folderMsg = targetFolder ? ` 到 ${targetFolder}` : "";
+      toast.success(`成功上傳 ${uploadedFiles.length} 個檔案${folderMsg}`);
     } catch (error) {
       console.error("上傳檔案失敗:", error);
       toast.error("上傳檔案失敗");
