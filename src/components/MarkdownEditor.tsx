@@ -22,6 +22,12 @@ interface MarkdownEditorProps {
 
 type ViewMode = "edit" | "preview" | "split";
 
+// 判斷檔案是否為 HTML
+const isHtmlFile = (fileName: string): boolean => {
+  const ext = fileName.toLowerCase();
+  return ext.endsWith(".html") || ext.endsWith(".htm");
+};
+
 export function MarkdownEditor({
   file,
   isLoading,
@@ -434,16 +440,29 @@ export function MarkdownEditor({
         {/* Preview Panel */}
         {(viewMode === "preview" || viewMode === "split") && (
           <div className={cn(
-            "flex-1 overflow-y-auto p-6",
+            "flex-1 overflow-hidden",
             viewMode === "split" && "bg-background/50"
           )}>
-            <div className="max-w-3xl mx-auto markdown-preview animate-fade-in">
-              <WikilinkRenderer
-                content={content}
-                files={files}
-                onNavigate={handleNavigate}
+            {isHtmlFile(file.name) ? (
+              // HTML 檔案預覽 - 使用 iframe 渲染
+              <iframe
+                srcDoc={content}
+                className="w-full h-full border-0 bg-white"
+                sandbox="allow-scripts allow-same-origin"
+                title="HTML Preview"
               />
-            </div>
+            ) : (
+              // Markdown 檔案預覽
+              <div className="h-full overflow-y-auto p-6">
+                <div className="max-w-3xl mx-auto markdown-preview animate-fade-in">
+                  <WikilinkRenderer
+                    content={content}
+                    files={files}
+                    onNavigate={handleNavigate}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
