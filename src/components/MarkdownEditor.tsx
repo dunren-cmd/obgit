@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileContent, FileNode } from "@/lib/github";
-import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2 } from "lucide-react";
+import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WikilinkRenderer } from "@/components/WikilinkRenderer";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
@@ -38,7 +38,10 @@ export function MarkdownEditor({
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [hasChanges, setHasChanges] = useState(false);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // 同步檔案內容
   useEffect(() => {
@@ -98,6 +101,55 @@ export function MarkdownEditor({
     });
   }, [content]);
 
+  // 拖放上傳處理
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 確保離開的是編輯器區域
+    if (editorRef.current && !editorRef.current.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (!onUploadImage) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter(file => file.type.startsWith("image/"));
+
+    if (imageFiles.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (const imageFile of imageFiles) {
+        const url = await onUploadImage(imageFile);
+        if (url) {
+          const markdown = `![${imageFile.name}](${url})\n`;
+          handleInsertImage(markdown);
+        }
+      }
+    } finally {
+      setIsUploading(false);
+    }
+  }, [onUploadImage, handleInsertImage]);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-editor">
@@ -123,7 +175,14 @@ export function MarkdownEditor({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-editor">
+    <div 
+      ref={editorRef}
+      className="flex-1 flex flex-col bg-editor relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
         <div className="flex items-center gap-3">
@@ -286,6 +345,26 @@ export function MarkdownEditor({
           </div>
         )}
       </div>
+
+      {/* Drag Overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-card px-6 py-4 rounded-lg shadow-lg flex items-center gap-3">
+            <Upload className="w-6 h-6 text-primary" />
+            <span className="text-lg font-medium text-foreground">放開以上傳圖片</span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Progress Overlay */}
+      {isUploading && (
+        <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
+          <div className="bg-card px-6 py-4 rounded-lg shadow-lg flex items-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span className="text-foreground">上傳中...</span>
+          </div>
+        </div>
+      )}
 
       {/* Image Insert Dialog */}
       <ImageInsertDialog
