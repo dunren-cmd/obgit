@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { FileContent, FileNode } from "@/lib/github";
+import { FileContent, FileNode, GitHubService } from "@/lib/github";
 import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload, Undo2, Redo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WikilinkRenderer } from "@/components/WikilinkRenderer";
@@ -18,6 +18,8 @@ interface MarkdownEditorProps {
   files?: FileNode[];
   onNavigate?: (path: string) => void;
   onUploadImage?: (file: File) => Promise<string | null>;
+  githubService?: GitHubService | null;
+  repoBaseUrl?: string;
 }
 
 type ViewMode = "edit" | "preview" | "split";
@@ -39,6 +41,8 @@ export function MarkdownEditor({
   files = [],
   onNavigate,
   onUploadImage,
+  githubService,
+  repoBaseUrl,
 }: MarkdownEditorProps) {
   const [content, setContent] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("split");
@@ -523,6 +527,8 @@ export function MarkdownEditor({
                     content={content}
                     files={files}
                     onNavigate={handleNavigate}
+                    githubService={githubService}
+                    repoBaseUrl={repoBaseUrl}
                   />
                 </div>
               </div>

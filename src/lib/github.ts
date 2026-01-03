@@ -138,6 +138,44 @@ export class GitHubService {
   }
 
   /**
+   * 獲取圖片檔案的 Data URL
+   */
+  async getImageDataUrl(path: string): Promise<string | null> {
+    try {
+      const response = await this.octokit.rest.repos.getContent({
+        owner: this.owner,
+        repo: this.repo,
+        path,
+      });
+
+      if (Array.isArray(response.data) || response.data.type !== "file") {
+        return null;
+      }
+
+      const base64Content = response.data.content.replace(/\n/g, "");
+      const ext = path.split('.').pop()?.toLowerCase() || 'png';
+      
+      // 根據副檔名判斷 MIME type
+      const mimeTypes: Record<string, string> = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'svg': 'image/svg+xml',
+        'webp': 'image/webp',
+        'ico': 'image/x-icon',
+        'bmp': 'image/bmp',
+      };
+      
+      const mimeType = mimeTypes[ext] || 'image/png';
+      return `data:${mimeType};base64,${base64Content}`;
+    } catch (error) {
+      console.error('Failed to load image:', path, error);
+      return null;
+    }
+  }
+
+  /**
    * 儲存檔案（建立或更新）
    */
   async saveFile(

@@ -266,6 +266,8 @@ const Index = () => {
             files={files}
             onNavigate={handleSelectFile}
             onUploadImage={handleUploadImage}
+            githubService={service}
+            repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
           />
         </main>
       </div>
