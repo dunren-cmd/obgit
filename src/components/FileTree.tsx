@@ -238,31 +238,6 @@ export function FileTree({
                 />
               ))}
             </div>
-            
-            {/* 根目錄拖放區域 */}
-            <div 
-              className={cn(
-                "mt-2 p-3 border-2 border-dashed rounded-lg transition-all duration-200 flex items-center justify-center gap-2",
-                isDragOverRoot 
-                  ? "border-primary bg-primary/10 text-primary" 
-                  : "border-transparent text-transparent hover:border-muted hover:text-muted-foreground"
-              )}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsDragOverRoot(true);
-                setDragOverPath(null);
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsDragOverRoot(false);
-              }}
-              onDrop={handleDrop}
-            >
-              <FolderInput className="w-4 h-4" />
-              <span className="text-xs">移動到根目錄</span>
-            </div>
           </>
         )}
       </div>
