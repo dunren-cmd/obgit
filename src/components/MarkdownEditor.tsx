@@ -146,38 +146,7 @@ export function MarkdownEditor({
     });
   }, [content]);
 
-  // 處理剪貼簿貼上圖片
-  const handlePaste = useCallback(async (e: ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (!items || !onUploadImage) return;
-
-    const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'));
-    if (imageItems.length === 0) return;
-
-    e.preventDefault();
-    setIsUploading(true);
-
-    try {
-      for (const item of imageItems) {
-        const file = item.getAsFile();
-        if (file) {
-          // 生成檔名：screenshot_日期時間.png
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          const namedFile = new File([file], `screenshot_${timestamp}.png`, { type: file.type });
-          
-          const url = await onUploadImage(namedFile);
-          if (url) {
-            const markdown = `![screenshot](${url})\n`;
-            handleInsertImage(markdown);
-          }
-        }
-      }
-    } finally {
-      setIsUploading(false);
-    }
-  }, [onUploadImage, handleInsertImage]);
-
-  // 鍵盤快捷鍵
+  // 鍵盤快捷鍵和剪貼簿貼上
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
@@ -198,13 +167,44 @@ export function MarkdownEditor({
       }
     };
 
+    // 處理剪貼簿貼上圖片
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items || !onUploadImage) return;
+
+      const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+
+      e.preventDefault();
+      setIsUploading(true);
+
+      try {
+        for (const item of imageItems) {
+          const file = item.getAsFile();
+          if (file) {
+            // 生成檔名：screenshot_日期時間.png
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const namedFile = new File([file], `screenshot_${timestamp}.png`, { type: file.type });
+            
+            const url = await onUploadImage(namedFile);
+            if (url) {
+              const markdown = `![screenshot](${url})\n`;
+              handleInsertImage(markdown);
+            }
+          }
+        }
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("paste", handlePaste);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("paste", handlePaste);
     };
-  }, [hasChanges, isSaving, handleSave, handleUndo, handleRedo, handlePaste]);
+  }, [hasChanges, isSaving, handleSave, handleUndo, handleRedo, onUploadImage, handleInsertImage]);
   // 拖放上傳處理
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
