@@ -45,7 +45,13 @@ export function MarkdownEditor({
   repoBaseUrl,
 }: MarkdownEditorProps) {
   const [content, setContent] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  // 行動裝置預設使用 edit 模式，桌面預設 split 模式
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return "edit";
+    }
+    return "split";
+  });
   const [hasChanges, setHasChanges] = useState(false);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -331,17 +337,17 @@ export function MarkdownEditor({
       onDrop={handleDrop}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-        <div className="flex items-center gap-3">
-          <h2 className="font-medium text-foreground truncate max-w-xs">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b border-border bg-card/50 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <h2 className="font-medium text-foreground truncate text-sm sm:text-base max-w-[120px] sm:max-w-xs">
             {file.name}
           </h2>
           {/* 同步狀態指示器 */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             {/* 同步圖示 */}
             <div 
               className={cn(
-                "flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300",
+                "flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full transition-all duration-300",
                 saveStatus === "saving" && "bg-primary/20",
                 saveStatus === "saved" && "bg-green-500/20",
                 saveStatus === "error" && "bg-destructive/20",
@@ -351,7 +357,7 @@ export function MarkdownEditor({
             >
               <RefreshCw 
                 className={cn(
-                  "w-3.5 h-3.5 transition-all duration-300",
+                  "w-3 h-3 sm:w-3.5 sm:h-3.5 transition-all duration-300",
                   saveStatus === "saving" && "text-primary animate-spin",
                   saveStatus === "saved" && "text-green-500",
                   saveStatus === "error" && "text-destructive",
@@ -361,35 +367,27 @@ export function MarkdownEditor({
               />
             </div>
             
-            {/* 狀態文字 */}
-            {saveStatus === "saving" ? (
-              <span className="text-xs text-muted-foreground animate-pulse">
-                同步中...
-              </span>
-            ) : saveStatus === "saved" ? (
-              <span className="text-xs text-green-500 animate-fade-in">
-                已同步
-              </span>
-            ) : saveStatus === "error" ? (
-              <span className="text-xs text-destructive animate-fade-in">
-                同步失敗
-              </span>
-            ) : hasChanges ? (
-              <span className="text-xs text-warning">
-                未同步
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                無變更
-              </span>
-            )}
+            {/* 狀態文字 - 行動裝置隱藏 */}
+            <span className="hidden sm:inline text-xs">
+              {saveStatus === "saving" ? (
+                <span className="text-muted-foreground animate-pulse">同步中...</span>
+              ) : saveStatus === "saved" ? (
+                <span className="text-green-500 animate-fade-in">已同步</span>
+              ) : saveStatus === "error" ? (
+                <span className="text-destructive animate-fade-in">同步失敗</span>
+              ) : hasChanges ? (
+                <span className="text-warning">未同步</span>
+              ) : (
+                <span className="text-muted-foreground">無變更</span>
+              )}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
 
-          {/* Undo/Redo Buttons */}
-          <div className="flex items-center border border-border rounded-md overflow-hidden">
+          {/* Undo/Redo Buttons - 行動裝置隱藏 */}
+          <div className="hidden sm:flex items-center border border-border rounded-md overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
@@ -412,35 +410,36 @@ export function MarkdownEditor({
             </Button>
           </div>
 
-          {/* Image Insert */}
+          {/* Image Insert - 行動裝置隱藏 */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsImageDialogOpen(true)}
-            className="h-8 text-muted-foreground hover:text-foreground"
+            className="hidden sm:flex h-8 text-muted-foreground hover:text-foreground"
           >
             <ImageIcon className="w-4 h-4" />
           </Button>
 
-          {/* View Mode Toggles */}
+          {/* View Mode Toggles - 行動裝置只顯示 edit 和 preview */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode("edit")}
               className={cn(
-                "h-8 rounded-none border-0",
+                "h-7 sm:h-8 w-7 sm:w-auto px-2 rounded-none border-0",
                 viewMode === "edit" && "bg-primary/10 text-primary"
               )}
             >
               <Edit3 className="w-4 h-4" />
             </Button>
+            {/* Split 按鈕只在桌面顯示 */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode("split")}
               className={cn(
-                "h-8 rounded-none border-0",
+                "hidden sm:flex h-8 rounded-none border-0",
                 viewMode === "split" && "bg-primary/10 text-primary"
               )}
             >
@@ -451,7 +450,7 @@ export function MarkdownEditor({
               size="sm"
               onClick={() => setViewMode("preview")}
               className={cn(
-                "h-8 rounded-none border-0",
+                "h-7 sm:h-8 w-7 sm:w-auto px-2 rounded-none border-0",
                 viewMode === "preview" && "bg-primary/10 text-primary"
               )}
             >
@@ -459,25 +458,25 @@ export function MarkdownEditor({
             </Button>
           </div>
 
-          {/* Rename Button */}
+          {/* Rename Button - 行動裝置隱藏 */}
           {onRename && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onRename}
-              className="h-8 text-muted-foreground hover:text-foreground"
+              className="hidden sm:flex h-8 text-muted-foreground hover:text-foreground"
             >
               <Edit2 className="w-4 h-4" />
             </Button>
           )}
 
-          {/* Delete Button */}
+          {/* Delete Button - 行動裝置隱藏 */}
           {onDelete && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onDelete}
-              className="h-8 text-muted-foreground hover:text-destructive"
+              className="hidden sm:flex h-8 text-muted-foreground hover:text-destructive"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -488,14 +487,14 @@ export function MarkdownEditor({
             size="sm"
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
-            className="h-8 bg-primary hover:bg-primary/90"
+            className="h-7 sm:h-8 px-2 sm:px-3 bg-primary hover:bg-primary/90"
           >
             {isSaving ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" />
             ) : (
-              <Save className="w-4 h-4 mr-1.5" />
+              <Save className="w-4 h-4 sm:mr-1.5" />
             )}
-            儲存
+            <span className="hidden sm:inline">儲存</span>
           </Button>
         </div>
       </div>
@@ -518,8 +517,9 @@ export function MarkdownEditor({
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="flex-1 w-full resize-none border-0 bg-transparent p-6 focus:outline-none editor-content text-foreground font-mono text-sm"
+              className="flex-1 w-full resize-none border-0 bg-transparent p-4 sm:p-6 focus:outline-none editor-content text-foreground font-mono text-sm leading-relaxed touch-manipulation"
               placeholder="開始輸入你的筆記..."
+              style={{ fontSize: '16px' }} // 防止 iOS 自動縮放
             />
           </div>
         )}
@@ -540,8 +540,8 @@ export function MarkdownEditor({
               />
             ) : (
               // Markdown 檔案預覽
-              <div className="h-full overflow-y-auto p-6">
-                <div className="max-w-3xl mx-auto markdown-preview animate-fade-in">
+              <div className="h-full overflow-y-auto p-4 sm:p-6 overscroll-contain">
+                <div className="max-w-3xl mx-auto markdown-preview animate-fade-in text-sm sm:text-base">
                   <WikilinkRenderer
                     content={content}
                     files={files}
