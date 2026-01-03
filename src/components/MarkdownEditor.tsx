@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { FileContent, FileNode } from "@/lib/github";
-import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2 } from "lucide-react";
+import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WikilinkRenderer } from "@/components/WikilinkRenderer";
+import { FormattingToolbar } from "@/components/FormattingToolbar";
+import { ImageInsertDialog } from "@/components/ImageInsertDialog";
 
 interface MarkdownEditorProps {
   file: FileContent | null;
@@ -13,8 +14,10 @@ interface MarkdownEditorProps {
   saveStatus: "idle" | "saving" | "saved" | "error";
   onSave: (content: string) => Promise<boolean>;
   onDelete?: () => void;
+  onRename?: () => void;
   files?: FileNode[];
   onNavigate?: (path: string) => void;
+  onUploadImage?: (file: File) => Promise<string | null>;
 }
 
 type ViewMode = "edit" | "preview" | "split";
@@ -26,12 +29,16 @@ export function MarkdownEditor({
   saveStatus,
   onSave,
   onDelete,
+  onRename,
   files = [],
   onNavigate,
+  onUploadImage,
 }: MarkdownEditorProps) {
   const [content, setContent] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [hasChanges, setHasChanges] = useState(false);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 同步檔案內容
   useEffect(() => {
@@ -71,6 +78,25 @@ export function MarkdownEditor({
   const handleNavigate = useCallback((path: string) => {
     onNavigate?.(path);
   }, [onNavigate]);
+
+  const handleInsertImage = useCallback((markdown: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setContent((prev) => prev + "\n" + markdown);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newContent = content.slice(0, start) + markdown + content.slice(end);
+    setContent(newContent);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = start + markdown.length;
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  }, [content]);
 
   if (isLoading) {
     return (
@@ -132,6 +158,16 @@ export function MarkdownEditor({
             )}
           </div>
 
+          {/* Image Insert */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsImageDialogOpen(true)}
+            className="h-8 text-muted-foreground hover:text-foreground"
+          >
+            <ImageIcon className="w-4 h-4" />
+          </Button>
+
           {/* View Mode Toggles */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">
             <Button
@@ -169,6 +205,18 @@ export function MarkdownEditor({
             </Button>
           </div>
 
+          {/* Rename Button */}
+          {onRename && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRename}
+              className="h-8 text-muted-foreground hover:text-foreground"
+            >
+              <Edit2 className="w-4 h-4" />
+            </Button>
+          )}
+
           {/* Delete Button */}
           {onDelete && (
             <Button
@@ -203,13 +251,20 @@ export function MarkdownEditor({
         {/* Editor Panel */}
         {(viewMode === "edit" || viewMode === "split") && (
           <div className={cn(
-            "flex-1 overflow-hidden",
+            "flex-1 overflow-hidden flex flex-col",
             viewMode === "split" && "border-r border-border"
           )}>
-            <Textarea
+            {/* Formatting Toolbar */}
+            <FormattingToolbar
+              textareaRef={textareaRef}
+              content={content}
+              onContentChange={setContent}
+            />
+            <textarea
+              ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="h-full w-full resize-none border-0 rounded-none bg-transparent p-6 focus-visible:ring-0 focus-visible:ring-offset-0 editor-content text-foreground"
+              className="flex-1 w-full resize-none border-0 bg-transparent p-6 focus:outline-none editor-content text-foreground font-mono text-sm"
               placeholder="開始輸入你的筆記..."
             />
           </div>
@@ -231,6 +286,14 @@ export function MarkdownEditor({
           </div>
         )}
       </div>
+
+      {/* Image Insert Dialog */}
+      <ImageInsertDialog
+        open={isImageDialogOpen}
+        onOpenChange={setIsImageDialogOpen}
+        onInsertImage={handleInsertImage}
+        onUploadImage={onUploadImage}
+      />
     </div>
   );
 }
