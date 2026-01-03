@@ -211,11 +211,6 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: 
   };
 
   const handleDragStart = (e: React.DragEvent) => {
-    if (isDir) {
-      e.preventDefault();
-      return;
-    }
-    
     // 設置拖曳資料
     e.dataTransfer.setData("text/plain", node.path);
     e.dataTransfer.setData("application/x-file-path", node.path);
@@ -235,8 +230,10 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: 
     <div className="animate-slide-in" style={{ animationDelay: `${level * 30}ms` }}>
       <div
         onClick={handleClick}
-        draggable={!isDir}
-        onDragStart={handleDragStart}
+        {...(!isDir && {
+          draggable: true,
+          onDragStart: handleDragStart,
+        })}
         className={cn(
           "file-tree-item",
           isSelected && "active",
