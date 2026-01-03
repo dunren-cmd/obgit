@@ -8,6 +8,7 @@ import {
   getGitHubService,
   clearGitHubService,
 } from "@/lib/github";
+import { encrypt, decrypt, isEncrypted, clearEncryptionKey } from "@/lib/crypto";
 
 const STORAGE_KEY = "obsidian-web-github-config";
 
@@ -21,6 +22,42 @@ interface UseGitHubReturn {
   service: GitHubService | null;
 }
 
+// 安全儲存設定（加密 token）
+async function saveConfigSecurely(config: GitHubConfig): Promise<void> {
+  try {
+    const configJson = JSON.stringify(config);
+    const encryptedData = await encrypt(configJson);
+    localStorage.setItem(STORAGE_KEY, encryptedData);
+  } catch (error) {
+    console.error("Failed to save config securely");
+    throw error;
+  }
+}
+
+// 安全讀取設定（解密 token）
+async function loadConfigSecurely(): Promise<GitHubConfig | null> {
+  try {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (!savedData) return null;
+
+    // 檢查是否為舊格式（未加密的 JSON）
+    if (!isEncrypted(savedData)) {
+      // 遷移舊資料：解析後重新加密儲存
+      const config = JSON.parse(savedData) as GitHubConfig;
+      await saveConfigSecurely(config);
+      return config;
+    }
+
+    // 解密資料
+    const decryptedJson = await decrypt(savedData);
+    return JSON.parse(decryptedJson) as GitHubConfig;
+  } catch (error) {
+    console.error("Failed to load config");
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+}
+
 export function useGitHub(): UseGitHubReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -28,17 +65,15 @@ export function useGitHub(): UseGitHubReturn {
   const [config, setConfig] = useState<GitHubConfig | null>(null);
   const [service, setService] = useState<GitHubService | null>(null);
 
-  // 初始化時嘗試從本地存儲恢復連接
+  // 初始化時嘗試從本地存儲恢復連接（使用加密）
   useEffect(() => {
-    const savedConfig = localStorage.getItem(STORAGE_KEY);
-    if (savedConfig) {
-      try {
-        const parsed = JSON.parse(savedConfig) as GitHubConfig;
-        connect(parsed);
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
+    const initConnection = async () => {
+      const savedConfig = await loadConfigSecurely();
+      if (savedConfig) {
+        connect(savedConfig);
       }
-    }
+    };
+    initConnection();
   }, []);
 
   const connect = useCallback(async (newConfig: GitHubConfig): Promise<boolean> => {
@@ -53,7 +88,8 @@ export function useGitHub(): UseGitHubReturn {
         setConfig(newConfig);
         setService(newService);
         setIsConnected(true);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
+        // 使用加密儲存
+        await saveConfigSecurely(newConfig);
         return true;
       } else {
         setError("無法連接到儲存庫，請檢查設定");
@@ -76,13 +112,15 @@ export function useGitHub(): UseGitHubReturn {
     }
   }, []);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
     clearGitHubService();
     setConfig(null);
     setService(null);
     setIsConnected(false);
     setError(null);
     localStorage.removeItem(STORAGE_KEY);
+    // 可選：清除加密金鑰（完全清除痕跡）
+    // await clearEncryptionKey();
   }, []);
 
   return {
