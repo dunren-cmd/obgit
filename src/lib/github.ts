@@ -307,12 +307,28 @@ export class GitHubService {
       const fileName = file.name;
       const path = targetFolder ? `${targetFolder}/${fileName}` : fileName;
 
+      // 檢查檔案是否已存在，取得 sha
+      let existingSha: string | undefined;
+      try {
+        const existingFile = await this.octokit.rest.repos.getContent({
+          owner: this.owner,
+          repo: this.repo,
+          path,
+        });
+        if (!Array.isArray(existingFile.data) && existingFile.data.type === "file") {
+          existingSha = existingFile.data.sha;
+        }
+      } catch {
+        // 檔案不存在，不需要 sha
+      }
+
       const response = await this.octokit.rest.repos.createOrUpdateFileContents({
         owner: this.owner,
         repo: this.repo,
         path,
         message: `上傳檔案 ${fileName} via Web`,
         content: base64,
+        sha: existingSha,
       });
 
       return {
