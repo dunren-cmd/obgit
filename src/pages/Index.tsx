@@ -12,6 +12,7 @@ import { TagsPanel } from "@/components/TagsPanel";
 import { Button } from "@/components/ui/button";
 import { LogOut, Github, Menu, X, Search, Hash, FolderPlus, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const Index = () => {
   const { isConnected, isConnecting, error, config, connect, disconnect, service } = useGitHub();
@@ -29,6 +30,11 @@ const Index = () => {
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
+  
+  // 目標資料夾（用於在特定目錄下建立檔案/資料夾）
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  // 重命名時的原始路徑
+  const [renameTargetPath, setRenameTargetPath] = useState<string>("");
 
   // 當檔案內容變更時更新快取（用於標籤面板）
   useEffect(() => {
@@ -52,9 +58,11 @@ const Index = () => {
       await service.createFile(path);
       await refresh();
       await handleSelectFile(path);
+      toast.success("檔案建立成功");
       return true;
     } catch (error) {
       console.error("建立檔案失敗:", error);
+      toast.error("建立檔案失敗");
       return false;
     }
   }, [service, refresh, handleSelectFile]);
@@ -71,36 +79,108 @@ const Index = () => {
           return newMap;
         });
         await refresh();
+        toast.success("檔案刪除成功");
       }
       return success;
     } catch (error) {
       console.error("刪除檔案失敗:", error);
+      toast.error("刪除檔案失敗");
       return false;
     }
   }, [service, content, refresh]);
 
-  const handleRenameFile = useCallback(async (newPath: string): Promise<boolean> => {
-    if (!service || !content) return false;
+  // 從檔案樹直接刪除檔案
+  const handleDeleteFileFromTree = useCallback(async (path: string, sha: string): Promise<boolean> => {
+    if (!service) return false;
     try {
-      await service.renameFile(content.path, newPath);
+      const success = await service.deleteFile(path, sha);
+      if (success) {
+        if (selectedPath === path) {
+          setSelectedPath(null);
+        }
+        setFileContents((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(path);
+          return newMap;
+        });
+        await refresh();
+        toast.success("檔案刪除成功");
+      }
+      return success;
+    } catch (error) {
+      console.error("刪除檔案失敗:", error);
+      toast.error("刪除檔案失敗");
+      return false;
+    }
+  }, [service, selectedPath, refresh]);
+
+  const handleRenameFile = useCallback(async (newPath: string): Promise<boolean> => {
+    if (!service) return false;
+    
+    // 使用 renameTargetPath 或 content.path
+    const oldPath = renameTargetPath || content?.path;
+    if (!oldPath) return false;
+    
+    try {
+      await service.renameFile(oldPath, newPath);
       // 更新快取
       setFileContents((prev) => {
         const newMap = new Map(prev);
-        const oldContent = newMap.get(content.path);
+        const oldContent = newMap.get(oldPath);
         if (oldContent) {
-          newMap.delete(content.path);
+          newMap.delete(oldPath);
           newMap.set(newPath, oldContent);
         }
         return newMap;
       });
       await refresh();
-      await handleSelectFile(newPath);
+      // 如果當前選中的是被重命名的檔案，更新選中路徑
+      if (selectedPath === oldPath) {
+        await handleSelectFile(newPath);
+      }
+      toast.success("檔案重新命名成功");
       return true;
     } catch (error) {
       console.error("重新命名失敗:", error);
+      toast.error("重新命名失敗");
       return false;
     }
-  }, [service, content, refresh, handleSelectFile]);
+  }, [service, content, renameTargetPath, selectedPath, refresh, handleSelectFile]);
+
+  // 從檔案樹觸發重命名
+  const handleRenameFromTree = useCallback((path: string) => {
+    setRenameTargetPath(path);
+    setIsRenameDialogOpen(true);
+  }, []);
+
+  // 移動檔案
+  const handleMoveFile = useCallback(async (sourcePath: string, targetPath: string): Promise<boolean> => {
+    if (!service) return false;
+    try {
+      await service.moveFile(sourcePath, targetPath);
+      // 更新快取
+      setFileContents((prev) => {
+        const newMap = new Map(prev);
+        const oldContent = newMap.get(sourcePath);
+        if (oldContent) {
+          newMap.delete(sourcePath);
+          newMap.set(targetPath, oldContent);
+        }
+        return newMap;
+      });
+      await refresh();
+      // 如果當前選中的是被移動的檔案，更新選中路徑
+      if (selectedPath === sourcePath) {
+        setSelectedPath(targetPath);
+      }
+      toast.success("檔案移動成功");
+      return true;
+    } catch (error) {
+      console.error("移動檔案失敗:", error);
+      toast.error("移動檔案失敗");
+      return false;
+    }
+  }, [service, selectedPath, refresh]);
 
   const handleCreateFolder = useCallback(async (path: string): Promise<boolean> => {
     if (!service) return false;
@@ -108,13 +188,49 @@ const Index = () => {
       const success = await service.createFolder(path);
       if (success) {
         await refresh();
+        toast.success("資料夾建立成功");
       }
       return success;
     } catch (error) {
       console.error("建立資料夾失敗:", error);
+      toast.error("建立資料夾失敗");
       return false;
     }
   }, [service, refresh]);
+
+  // 在特定資料夾下建立檔案
+  const handleCreateFileInFolder = useCallback((folderPath: string) => {
+    setTargetFolder(folderPath);
+    setIsCreateDialogOpen(true);
+  }, []);
+
+  // 在特定資料夾下建立子資料夾
+  const handleCreateFolderInFolder = useCallback((folderPath: string) => {
+    setTargetFolder(folderPath);
+    setIsCreateFolderDialogOpen(true);
+  }, []);
+
+  // 關閉對話框時重置目標資料夾
+  const handleCreateDialogChange = useCallback((open: boolean) => {
+    setIsCreateDialogOpen(open);
+    if (!open) {
+      setTargetFolder("");
+    }
+  }, []);
+
+  const handleCreateFolderDialogChange = useCallback((open: boolean) => {
+    setIsCreateFolderDialogOpen(open);
+    if (!open) {
+      setTargetFolder("");
+    }
+  }, []);
+
+  const handleRenameDialogChange = useCallback((open: boolean) => {
+    setIsRenameDialogOpen(open);
+    if (!open) {
+      setRenameTargetPath("");
+    }
+  }, []);
 
   const handleUploadImage = useCallback(async (file: File): Promise<string | null> => {
     if (!service) return null;
@@ -134,8 +250,10 @@ const Index = () => {
         await service.uploadFile(file);
       }
       await refresh();
+      toast.success(`成功上傳 ${uploadedFiles.length} 個檔案`);
     } catch (error) {
       console.error("上傳檔案失敗:", error);
+      toast.error("上傳檔案失敗");
     }
   }, [service, refresh]);
 
@@ -143,6 +261,17 @@ const Index = () => {
   if (!isConnected) {
     return <ConnectForm onConnect={connect} isConnecting={isConnecting} error={error} />;
   }
+
+  // 獲取重命名對話框需要的資訊
+  const getRenameInfo = () => {
+    if (renameTargetPath) {
+      const name = renameTargetPath.split("/").pop() || "";
+      return { path: renameTargetPath, name };
+    }
+    return { path: content?.path || "", name: content?.name || "" };
+  };
+
+  const renameInfo = getRenameInfo();
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -237,9 +366,20 @@ const Index = () => {
               selectedPath={selectedPath}
               onSelectFile={handleSelectFile}
               onRefresh={refresh}
-              onCreateFile={() => setIsCreateDialogOpen(true)}
-              onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+              onCreateFile={() => {
+                setTargetFolder("");
+                setIsCreateDialogOpen(true);
+              }}
+              onCreateFolder={() => {
+                setTargetFolder("");
+                setIsCreateFolderDialogOpen(true);
+              }}
               onUploadFiles={handleUploadFiles}
+              onDeleteFile={handleDeleteFileFromTree}
+              onRenameFile={handleRenameFromTree}
+              onMoveFile={handleMoveFile}
+              onCreateFileInFolder={handleCreateFileInFolder}
+              onCreateFolderInFolder={handleCreateFolderInFolder}
               repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
             />
           </div>
@@ -262,7 +402,10 @@ const Index = () => {
             saveStatus={saveStatus}
             onSave={save}
             onDelete={content ? () => setIsDeleteDialogOpen(true) : undefined}
-            onRename={content ? () => setIsRenameDialogOpen(true) : undefined}
+            onRename={content ? () => {
+              setRenameTargetPath("");
+              setIsRenameDialogOpen(true);
+            } : undefined}
             files={files}
             onNavigate={handleSelectFile}
             onUploadImage={handleUploadImage}
@@ -275,8 +418,9 @@ const Index = () => {
       {/* Dialogs */}
       <CreateFileDialog
         open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
+        onOpenChange={handleCreateDialogChange}
         onCreateFile={handleCreateFile}
+        currentFolder={targetFolder}
       />
 
       <DeleteFileDialog
@@ -295,16 +439,17 @@ const Index = () => {
 
       <RenameFileDialog
         open={isRenameDialogOpen}
-        onOpenChange={setIsRenameDialogOpen}
+        onOpenChange={handleRenameDialogChange}
         onRename={handleRenameFile}
-        currentPath={content?.path || ""}
-        currentName={content?.name || ""}
+        currentPath={renameInfo.path}
+        currentName={renameInfo.name}
       />
 
       <CreateFolderDialog
         open={isCreateFolderDialogOpen}
-        onOpenChange={setIsCreateFolderDialogOpen}
+        onOpenChange={handleCreateFolderDialogChange}
         onCreateFolder={handleCreateFolder}
+        currentFolder={targetFolder}
       />
     </div>
   );

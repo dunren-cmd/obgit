@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { FileNode } from "@/lib/github";
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus, Upload, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus, Upload, Loader2, MoreHorizontal, Trash2, Edit2, FilePlus, FolderInput } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FileIcon } from "@/components/FileIcon";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 interface FileTreeProps {
   files: FileNode[];
@@ -20,6 +28,11 @@ interface FileTreeProps {
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
   onUploadFiles?: (files: File[]) => Promise<void>;
+  onDeleteFile?: (path: string, sha: string) => Promise<boolean>;
+  onRenameFile?: (oldPath: string) => void;
+  onMoveFile?: (sourcePath: string, targetPath: string) => Promise<boolean>;
+  onCreateFileInFolder?: (folderPath: string) => void;
+  onCreateFolderInFolder?: (folderPath: string) => void;
   repoBaseUrl?: string;
 }
 
@@ -32,10 +45,16 @@ export function FileTree({
   onCreateFile,
   onCreateFolder,
   onUploadFiles,
+  onDeleteFile,
+  onRenameFile,
+  onMoveFile,
+  onCreateFileInFolder,
+  onCreateFolderInFolder,
   repoBaseUrl,
 }: FileTreeProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [dragOverPath, setDragOverPath] = useState<string | null>(null);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -78,6 +97,7 @@ export function FileTree({
       setIsUploading(false);
     }
   }, [onUploadFiles]);
+
   return (
     <div 
       className="h-full flex flex-col bg-sidebar relative"
@@ -153,6 +173,13 @@ export function FileTree({
                 onSelectFile={onSelectFile}
                 level={0}
                 repoBaseUrl={repoBaseUrl}
+                onDeleteFile={onDeleteFile}
+                onRenameFile={onRenameFile}
+                onMoveFile={onMoveFile}
+                onCreateFileInFolder={onCreateFileInFolder}
+                onCreateFolderInFolder={onCreateFolderInFolder}
+                dragOverPath={dragOverPath}
+                setDragOverPath={setDragOverPath}
               />
             ))}
           </div>
@@ -188,6 +215,13 @@ interface FileTreeNodeProps {
   onSelectFile: (path: string) => void;
   level: number;
   repoBaseUrl?: string;
+  onDeleteFile?: (path: string, sha: string) => Promise<boolean>;
+  onRenameFile?: (oldPath: string) => void;
+  onMoveFile?: (sourcePath: string, targetPath: string) => Promise<boolean>;
+  onCreateFileInFolder?: (folderPath: string) => void;
+  onCreateFolderInFolder?: (folderPath: string) => void;
+  dragOverPath: string | null;
+  setDragOverPath: (path: string | null) => void;
 }
 
 // 判斷是否為圖片檔案
@@ -196,11 +230,26 @@ const isImageFile = (fileName: string): boolean => {
   return ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'].includes(ext);
 };
 
-function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: FileTreeNodeProps) {
+function FileTreeNode({ 
+  node, 
+  selectedPath, 
+  onSelectFile, 
+  level, 
+  repoBaseUrl,
+  onDeleteFile,
+  onRenameFile,
+  onMoveFile,
+  onCreateFileInFolder,
+  onCreateFolderInFolder,
+  dragOverPath,
+  setDragOverPath,
+}: FileTreeNodeProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isMoving, setIsMoving] = useState(false);
   const isSelected = selectedPath === node.path;
   const isDir = node.type === "dir";
   const isImage = !isDir && isImageFile(node.name);
+  const isDragOver = dragOverPath === node.path && isDir;
 
   const handleClick = () => {
     if (isDir) {
@@ -216,6 +265,8 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: 
     e.dataTransfer.setData("application/x-file-path", node.path);
     e.dataTransfer.setData("application/x-file-name", node.name);
     e.dataTransfer.setData("application/x-is-image", isImage ? "true" : "false");
+    e.dataTransfer.setData("application/x-is-dir", isDir ? "true" : "false");
+    e.dataTransfer.setData("application/x-node-sha", node.sha || "");
     
     // 如果有 repo base URL，設置完整的圖片 URL
     if (repoBaseUrl && isImage) {
@@ -223,45 +274,202 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: 
       e.dataTransfer.setData("application/x-image-url", imageUrl);
     }
     
-    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.effectAllowed = "move";
   };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 只有目錄可以接受拖放
+    if (isDir) {
+      e.dataTransfer.dropEffect = "move";
+      setDragOverPath(node.path);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragOverPath === node.path) {
+      setDragOverPath(null);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverPath(null);
+
+    if (!isDir || !onMoveFile) return;
+
+    const sourcePath = e.dataTransfer.getData("application/x-file-path");
+    const fileName = e.dataTransfer.getData("application/x-file-name");
+    
+    if (!sourcePath || !fileName) return;
+    
+    // 不能移動到自己或子目錄
+    if (sourcePath === node.path || node.path.startsWith(sourcePath + "/")) {
+      return;
+    }
+
+    const targetPath = `${node.path}/${fileName}`;
+    
+    // 避免移動到相同位置
+    if (sourcePath === targetPath) return;
+
+    setIsMoving(true);
+    try {
+      await onMoveFile(sourcePath, targetPath);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (onDeleteFile && node.sha) {
+      await onDeleteFile(node.path, node.sha);
+    }
+  };
+
+  const handleRename = () => {
+    if (onRenameFile) {
+      onRenameFile(node.path);
+    }
+  };
+
+  const handleCreateFileInFolder = () => {
+    if (onCreateFileInFolder && isDir) {
+      onCreateFileInFolder(node.path);
+    }
+  };
+
+  const handleCreateFolderInFolder = () => {
+    if (onCreateFolderInFolder && isDir) {
+      onCreateFolderInFolder(node.path);
+    }
+  };
+
+  const nodeContent = (
+    <div
+      onClick={handleClick}
+      draggable={true}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        "file-tree-item group",
+        isSelected && "active",
+        "cursor-grab active:cursor-grabbing",
+        isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset",
+        isMoving && "opacity-50"
+      )}
+      style={{ paddingLeft: `${12 + level * 16}px` }}
+    >
+      {isDir ? (
+        <>
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          )}
+          {isExpanded ? (
+            <FolderOpen className="w-4 h-4 text-primary flex-shrink-0" />
+          ) : (
+            <Folder className="w-4 h-4 text-primary flex-shrink-0" />
+          )}
+        </>
+      ) : (
+        <>
+          <span className="w-4" />
+          <FileIcon fileName={node.name} />
+        </>
+      )}
+      <span className="truncate text-sm flex-1">{node.name}</span>
+      
+      {/* 操作選單按鈕 */}
+      {(onDeleteFile || onRenameFile || (isDir && (onCreateFileInFolder || onCreateFolderInFolder))) && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {isDir && onCreateFileInFolder && (
+              <DropdownMenuItem onClick={handleCreateFileInFolder}>
+                <FilePlus className="w-4 h-4 mr-2" />
+                新增檔案
+              </DropdownMenuItem>
+            )}
+            {isDir && onCreateFolderInFolder && (
+              <DropdownMenuItem onClick={handleCreateFolderInFolder}>
+                <FolderPlus className="w-4 h-4 mr-2" />
+                新增子資料夾
+              </DropdownMenuItem>
+            )}
+            {isDir && (onCreateFileInFolder || onCreateFolderInFolder) && (onRenameFile || onDeleteFile) && (
+              <DropdownMenuSeparator />
+            )}
+            {onRenameFile && !isDir && (
+              <DropdownMenuItem onClick={handleRename}>
+                <Edit2 className="w-4 h-4 mr-2" />
+                重新命名
+              </DropdownMenuItem>
+            )}
+            {onDeleteFile && !isDir && (
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+                <Trash2 className="w-4 h-4 mr-2" />
+                刪除
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
 
   return (
     <div className="animate-slide-in" style={{ animationDelay: `${level * 30}ms` }}>
-      <div
-        onClick={handleClick}
-        {...(!isDir && {
-          draggable: true,
-          onDragStart: handleDragStart,
-        })}
-        className={cn(
-          "file-tree-item",
-          isSelected && "active",
-          !isDir && "cursor-grab active:cursor-grabbing"
-        )}
-        style={{ paddingLeft: `${12 + level * 16}px` }}
-      >
-        {isDir ? (
-          <>
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            )}
-            {isExpanded ? (
-              <FolderOpen className="w-4 h-4 text-primary flex-shrink-0" />
-            ) : (
-              <Folder className="w-4 h-4 text-primary flex-shrink-0" />
-            )}
-          </>
-        ) : (
-          <>
-            <span className="w-4" />
-            <FileIcon fileName={node.name} />
-          </>
-        )}
-        <span className="truncate text-sm">{node.name}</span>
-      </div>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {nodeContent}
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {isDir && onCreateFileInFolder && (
+            <ContextMenuItem onClick={handleCreateFileInFolder}>
+              <FilePlus className="w-4 h-4 mr-2" />
+              新增檔案
+            </ContextMenuItem>
+          )}
+          {isDir && onCreateFolderInFolder && (
+            <ContextMenuItem onClick={handleCreateFolderInFolder}>
+              <FolderPlus className="w-4 h-4 mr-2" />
+              新增子資料夾
+            </ContextMenuItem>
+          )}
+          {isDir && (onCreateFileInFolder || onCreateFolderInFolder) && (
+            <ContextMenuSeparator />
+          )}
+          {onRenameFile && !isDir && (
+            <ContextMenuItem onClick={handleRename}>
+              <Edit2 className="w-4 h-4 mr-2" />
+              重新命名
+            </ContextMenuItem>
+          )}
+          {onDeleteFile && !isDir && (
+            <ContextMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+              <Trash2 className="w-4 h-4 mr-2" />
+              刪除
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
 
       {isDir && isExpanded && node.children && (
         <div>
@@ -273,6 +481,13 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: 
               onSelectFile={onSelectFile}
               level={level + 1}
               repoBaseUrl={repoBaseUrl}
+              onDeleteFile={onDeleteFile}
+              onRenameFile={onRenameFile}
+              onMoveFile={onMoveFile}
+              onCreateFileInFolder={onCreateFileInFolder}
+              onCreateFolderInFolder={onCreateFolderInFolder}
+              dragOverPath={dragOverPath}
+              setDragOverPath={setDragOverPath}
             />
           ))}
         </div>

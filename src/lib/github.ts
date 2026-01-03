@@ -274,6 +274,75 @@ export class GitHubService {
   }
 
   /**
+   * 移動檔案到新位置
+   */
+  async moveFile(sourcePath: string, targetPath: string): Promise<FileContent> {
+    return this.renameFile(sourcePath, targetPath);
+  }
+
+  /**
+   * 遞迴獲取目錄下所有檔案路徑
+   */
+  private async getAllFilesInDirectory(path: string): Promise<{ path: string; sha: string }[]> {
+    const files: { path: string; sha: string }[] = [];
+    
+    try {
+      const response = await this.octokit.rest.repos.getContent({
+        owner: this.owner,
+        repo: this.repo,
+        path,
+      });
+
+      if (!Array.isArray(response.data)) {
+        return files;
+      }
+
+      for (const item of response.data) {
+        if (item.type === "file") {
+          files.push({ path: item.path, sha: item.sha });
+        } else if (item.type === "dir") {
+          const subFiles = await this.getAllFilesInDirectory(item.path);
+          files.push(...subFiles);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to get directory contents:", path);
+    }
+    
+    return files;
+  }
+
+  /**
+   * 移動整個目錄到新位置
+   */
+  async moveDirectory(sourcePath: string, targetPath: string): Promise<boolean> {
+    try {
+      // 獲取目錄下所有檔案
+      const files = await this.getAllFilesInDirectory(sourcePath);
+      
+      // 移動每個檔案
+      for (const file of files) {
+        const relativePath = file.path.substring(sourcePath.length);
+        const newFilePath = targetPath + relativePath;
+        
+        // 獲取檔案內容
+        const content = await this.getFileContent(file.path);
+        
+        // 在新位置建立檔案
+        await this.createFile(newFilePath, content.content);
+        
+        // 刪除原檔案
+        await this.deleteFile(file.path, file.sha);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("移動目錄失敗:", error);
+      throw error;
+    }
+  }
+
+  /**
    * 建立資料夾（透過建立一個 .gitkeep 或 placeholder 檔案）
    */
   async createFolder(path: string): Promise<boolean> {
