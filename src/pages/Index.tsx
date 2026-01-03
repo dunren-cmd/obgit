@@ -127,6 +127,18 @@ const Index = () => {
     }
   }, [service]);
 
+  const handleUploadFiles = useCallback(async (uploadedFiles: File[]): Promise<void> => {
+    if (!service) return;
+    try {
+      for (const file of uploadedFiles) {
+        await service.uploadFile(file);
+      }
+      await refresh();
+    } catch (error) {
+      console.error("上傳檔案失敗:", error);
+    }
+  }, [service, refresh]);
+
   // 顯示連接表單
   if (!isConnected) {
     return <ConnectForm onConnect={connect} isConnecting={isConnecting} error={error} />;
@@ -227,6 +239,7 @@ const Index = () => {
               onRefresh={refresh}
               onCreateFile={() => setIsCreateDialogOpen(true)}
               onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+              onUploadFiles={handleUploadFiles}
             />
           </div>
         </aside>

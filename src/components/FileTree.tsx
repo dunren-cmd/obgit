@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { FileNode } from "@/lib/github";
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus } from "lucide-react";
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus, Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ interface FileTreeProps {
   onRefresh: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
+  onUploadFiles?: (files: File[]) => Promise<void>;
 }
 
 export function FileTree({
@@ -28,9 +29,60 @@ export function FileTree({
   onRefresh,
   onCreateFile,
   onCreateFolder,
+  onUploadFiles,
 }: FileTreeProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (!onUploadFiles) return;
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      await onUploadFiles(droppedFiles);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [onUploadFiles]);
   return (
-    <div className="h-full flex flex-col bg-sidebar">
+    <div 
+      className="h-full flex flex-col bg-sidebar relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
         <span className="text-sm font-medium text-sidebar-foreground">檔案</span>
@@ -84,6 +136,9 @@ export function FileTree({
           <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
             <File className="w-8 h-8 mb-2 opacity-50" />
             <p>沒有找到 Markdown 檔案</p>
+            {onUploadFiles && (
+              <p className="text-xs mt-2 opacity-70">拖放檔案到此處上傳</p>
+            )}
           </div>
         ) : (
           <div className="space-y-0.5">
@@ -99,6 +154,26 @@ export function FileTree({
           </div>
         )}
       </div>
+
+      {/* Drag Overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-card px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <Upload className="w-5 h-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">放開以上傳檔案</span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Progress Overlay */}
+      {isUploading && (
+        <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
+          <div className="bg-card px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span className="text-sm text-foreground">上傳中...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

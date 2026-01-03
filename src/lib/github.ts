@@ -289,6 +289,41 @@ export class GitHubService {
       throw error;
     }
   }
+
+  /**
+   * 上傳任意檔案到儲存庫
+   */
+  async uploadFile(file: File, targetFolder: string = ""): Promise<{ path: string; sha: string }> {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ""
+        )
+      );
+      
+      // 使用原始檔名
+      const fileName = file.name;
+      const path = targetFolder ? `${targetFolder}/${fileName}` : fileName;
+
+      const response = await this.octokit.rest.repos.createOrUpdateFileContents({
+        owner: this.owner,
+        repo: this.repo,
+        path,
+        message: `上傳檔案 ${fileName} via Web`,
+        content: base64,
+      });
+
+      return {
+        path,
+        sha: response.data.content?.sha || "",
+      };
+    } catch (error) {
+      console.error("上傳檔案失敗:", error);
+      throw error;
+    }
+  }
 }
 
 // 全域實例管理
