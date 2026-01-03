@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileContent, FileNode } from "@/lib/github";
-import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload } from "lucide-react";
+import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload, Undo2, Redo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WikilinkRenderer } from "@/components/WikilinkRenderer";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
@@ -40,6 +40,12 @@ export function MarkdownEditor({
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Undo/Redo 歷史記錄
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedoRef = useRef(false);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -48,8 +54,36 @@ export function MarkdownEditor({
     if (file) {
       setContent(file.content);
       setHasChanges(false);
+      // 重置歷史記錄
+      setHistory([file.content]);
+      setHistoryIndex(0);
     }
   }, [file]);
+
+  // 追蹤內容變更到歷史記錄（防抖）
+  useEffect(() => {
+    if (isUndoRedoRef.current) {
+      isUndoRedoRef.current = false;
+      return;
+    }
+    
+    if (history.length === 0 || content === history[historyIndex]) return;
+    
+    const timer = setTimeout(() => {
+      setHistory(prev => {
+        // 如果不在歷史末端，截斷後面的記錄
+        const newHistory = prev.slice(0, historyIndex + 1);
+        // 限制歷史記錄數量
+        if (newHistory.length >= 100) {
+          newHistory.shift();
+        }
+        return [...newHistory, content];
+      });
+      setHistoryIndex(prev => Math.min(prev + 1, 99));
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [content]);
 
   // 監測變更
   useEffect(() => {
@@ -57,6 +91,26 @@ export function MarkdownEditor({
       setHasChanges(content !== file.content);
     }
   }, [content, file]);
+
+  // Undo/Redo 函數
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    isUndoRedoRef.current = true;
+    const newIndex = historyIndex - 1;
+    setHistoryIndex(newIndex);
+    setContent(history[newIndex]);
+  }, [canUndo, historyIndex, history]);
+
+  const handleRedo = useCallback(() => {
+    if (!canRedo) return;
+    isUndoRedoRef.current = true;
+    const newIndex = historyIndex + 1;
+    setHistoryIndex(newIndex);
+    setContent(history[newIndex]);
+  }, [canRedo, historyIndex, history]);
 
   // 鍵盤快捷鍵
   useEffect(() => {
@@ -67,11 +121,21 @@ export function MarkdownEditor({
           handleSave();
         }
       }
+      // Ctrl/Cmd + Z = Undo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      // Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y = Redo
+      if ((e.metaKey || e.ctrlKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+        e.preventDefault();
+        handleRedo();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasChanges, isSaving, content]);
+  }, [hasChanges, isSaving, content, handleUndo, handleRedo]);
 
   const handleSave = useCallback(async () => {
     if (!hasChanges || isSaving) return;
@@ -229,6 +293,30 @@ export function MarkdownEditor({
                 儲存失敗
               </span>
             )}
+          </div>
+
+          {/* Undo/Redo Buttons */}
+          <div className="flex items-center border border-border rounded-md overflow-hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              className="h-8 rounded-none border-0"
+              title="還原 (Ctrl+Z)"
+            >
+              <Undo2 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              className="h-8 rounded-none border-0"
+              title="重做 (Ctrl+Y)"
+            >
+              <Redo2 className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* Image Insert */}
