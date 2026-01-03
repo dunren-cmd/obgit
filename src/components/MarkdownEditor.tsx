@@ -337,13 +337,13 @@ export function MarkdownEditor({
       onDrop={handleDrop}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b border-border bg-card/50 gap-1 sm:gap-2">
-        {/* 左側：檔名和狀態 */}
-        <div className="flex items-center gap-2 min-w-0 flex-shrink">
-          <h2 className="font-medium text-foreground truncate text-sm max-w-[100px] sm:max-w-xs">
+      <div className="flex flex-wrap items-center justify-between px-2 sm:px-4 py-2 border-b border-border bg-card/50 gap-2">
+        {/* 第一行：檔名和狀態 */}
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="font-medium text-foreground truncate text-sm max-w-[150px] sm:max-w-xs">
             {file.name}
           </h2>
-          {/* 同步圖示 - 行動裝置只顯示圖示 */}
+          {/* 同步圖示 */}
           <div 
             className={cn(
               "flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full transition-all duration-300 flex-shrink-0",
@@ -381,8 +381,8 @@ export function MarkdownEditor({
           </span>
         </div>
 
-        {/* 右側：操作按鈕 */}
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        {/* 右側：核心操作按鈕（會自動換行） */}
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
           {/* Undo/Redo - 只在桌面顯示 */}
           <div className="hidden md:flex items-center border border-border rounded-md overflow-hidden">
             <Button
@@ -417,14 +417,14 @@ export function MarkdownEditor({
             <ImageIcon className="w-4 h-4" />
           </Button>
 
-          {/* View Mode Toggle - 行動裝置簡化為兩個按鈕 */}
+          {/* View Mode Toggle - 始終顯示 */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode("edit")}
               className={cn(
-                "h-7 w-7 p-0 rounded-none border-0",
+                "h-8 w-8 p-0 rounded-none border-0",
                 viewMode === "edit" && "bg-primary/10 text-primary"
               )}
             >
@@ -447,7 +447,7 @@ export function MarkdownEditor({
               size="sm"
               onClick={() => setViewMode("preview")}
               className={cn(
-                "h-7 w-7 p-0 rounded-none border-0",
+                "h-8 w-8 p-0 rounded-none border-0",
                 viewMode === "preview" && "bg-primary/10 text-primary"
               )}
             >
@@ -479,19 +479,19 @@ export function MarkdownEditor({
             </Button>
           )}
 
-          {/* Save Button */}
+          {/* Save Button - 始終顯示 */}
           <Button
             size="sm"
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
-            className="h-7 px-2 sm:h-8 sm:px-3 bg-primary hover:bg-primary/90"
+            className="h-8 px-3 bg-primary hover:bg-primary/90"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Save className="w-4 h-4" />
             )}
-            <span className="hidden sm:inline ml-1.5">儲存</span>
+            <span className="ml-1.5">儲存</span>
           </Button>
         </div>
       </div>
