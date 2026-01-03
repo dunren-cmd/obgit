@@ -129,24 +129,38 @@ export function MarkdownEditor({
     e.stopPropagation();
     setIsDragging(false);
 
-    if (!onUploadImage) return;
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    const imageFiles = droppedFiles.filter(file => file.type.startsWith("image/"));
+    const htmlFiles = droppedFiles.filter(file => 
+      file.type === "text/html" || file.name.endsWith(".html") || file.name.endsWith(".htm")
+    );
 
-    const files = Array.from(e.dataTransfer.files);
-    const imageFiles = files.filter(file => file.type.startsWith("image/"));
+    // 處理 HTML 檔案 - 讀取內容並插入
+    for (const htmlFile of htmlFiles) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const htmlContent = event.target?.result as string;
+        // 將 HTML 包裝在程式碼區塊中插入
+        const markdown = `\n\`\`\`html\n${htmlContent}\n\`\`\`\n`;
+        handleInsertImage(markdown);
+      };
+      reader.readAsText(htmlFile);
+    }
 
-    if (imageFiles.length === 0) return;
-
-    setIsUploading(true);
-    try {
-      for (const imageFile of imageFiles) {
-        const url = await onUploadImage(imageFile);
-        if (url) {
-          const markdown = `![${imageFile.name}](${url})\n`;
-          handleInsertImage(markdown);
+    // 處理圖片檔案 - 上傳並插入
+    if (imageFiles.length > 0 && onUploadImage) {
+      setIsUploading(true);
+      try {
+        for (const imageFile of imageFiles) {
+          const url = await onUploadImage(imageFile);
+          if (url) {
+            const markdown = `![${imageFile.name}](${url})\n`;
+            handleInsertImage(markdown);
+          }
         }
+      } finally {
+        setIsUploading(false);
       }
-    } finally {
-      setIsUploading(false);
     }
   }, [onUploadImage, handleInsertImage]);
 
@@ -351,7 +365,7 @@ export function MarkdownEditor({
         <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-50 pointer-events-none">
           <div className="bg-card px-6 py-4 rounded-lg shadow-lg flex items-center gap-3">
             <Upload className="w-6 h-6 text-primary" />
-            <span className="text-lg font-medium text-foreground">放開以上傳圖片</span>
+            <span className="text-lg font-medium text-foreground">放開以上傳圖片或 HTML</span>
           </div>
         </div>
       )}
