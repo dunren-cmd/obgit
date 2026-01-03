@@ -55,11 +55,13 @@ export function FileTree({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer.types.includes("Files")) {
+    // 本地檔案或內部檔案都可以拖入
+    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes("application/x-file-path")) {
       setIsDragging(true);
     }
   }, []);
@@ -72,31 +74,76 @@ export function FileTree({
     const y = e.clientY;
     if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
       setIsDragging(false);
+      setIsDragOverRoot(false);
     }
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // 判斷是否在根區域（檔案列表區域但不在任何節點上）
+    if (e.dataTransfer.types.includes("application/x-file-path") || e.dataTransfer.types.includes("Files")) {
+      e.dataTransfer.dropEffect = e.dataTransfer.types.includes("Files") ? "copy" : "move";
+    }
+  }, []);
+
+  // 根區域專用的拖放處理
+  const handleRootDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("application/x-file-path") || e.dataTransfer.types.includes("Files")) {
+      setIsDragOverRoot(true);
+      setDragOverPath(null); // 清除子目錄的 dragOver 狀態
+    }
+  }, []);
+
+  const handleRootDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverRoot(false);
   }, []);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setIsDragOverRoot(false);
 
-    if (!onUploadFiles) return;
-
+    // 檢查是否為本地檔案
     const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length === 0) return;
-
-    setIsUploading(true);
-    try {
-      await onUploadFiles(droppedFiles);
-    } finally {
-      setIsUploading(false);
+    if (droppedFiles.length > 0 && onUploadFiles) {
+      setIsUploading(true);
+      try {
+        await onUploadFiles(droppedFiles);
+      } finally {
+        setIsUploading(false);
+      }
+      return;
     }
-  }, [onUploadFiles]);
+
+    // 內部檔案移動到根目錄
+    if (onMoveFile) {
+      const sourcePath = e.dataTransfer.getData("application/x-file-path");
+      const fileName = e.dataTransfer.getData("application/x-file-name");
+      
+      if (sourcePath && fileName) {
+        // 計算目標路徑（根目錄）
+        const targetPath = fileName;
+        
+        // 如果已經在根目錄，不需要移動
+        if (sourcePath === targetPath || !sourcePath.includes("/")) {
+          return;
+        }
+
+        setIsUploading(true);
+        try {
+          await onMoveFile(sourcePath, targetPath);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+    }
+  }, [onUploadFiles, onMoveFile]);
 
   return (
     <div 
@@ -150,7 +197,12 @@ export function FileTree({
       </div>
 
       {/* File List */}
-      <div className="flex-1 overflow-y-auto py-2 px-2">
+      <div 
+        className="flex-1 overflow-y-auto py-2 px-2"
+        onDragOver={handleRootDragOver}
+        onDragLeave={handleRootDragLeave}
+        onDrop={handleDrop}
+      >
         {isLoading && files.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
             載入中...
@@ -164,27 +216,54 @@ export function FileTree({
             )}
           </div>
         ) : (
-          <div className="space-y-0.5">
-            {files.map((node) => (
-              <FileTreeNode
-                key={node.path}
-                node={node}
-                selectedPath={selectedPath}
-                onSelectFile={onSelectFile}
-                level={0}
-                repoBaseUrl={repoBaseUrl}
-                onDeleteFile={onDeleteFile}
-                onRenameFile={onRenameFile}
-                onMoveFile={onMoveFile}
-                onCreateFileInFolder={onCreateFileInFolder}
-                onCreateFolderInFolder={onCreateFolderInFolder}
-                onUploadFiles={onUploadFiles}
-                dragOverPath={dragOverPath}
-                setDragOverPath={setDragOverPath}
-                setIsUploading={setIsUploading}
-              />
-            ))}
-          </div>
+          <>
+            <div className="space-y-0.5">
+              {files.map((node) => (
+                <FileTreeNode
+                  key={node.path}
+                  node={node}
+                  selectedPath={selectedPath}
+                  onSelectFile={onSelectFile}
+                  level={0}
+                  repoBaseUrl={repoBaseUrl}
+                  onDeleteFile={onDeleteFile}
+                  onRenameFile={onRenameFile}
+                  onMoveFile={onMoveFile}
+                  onCreateFileInFolder={onCreateFileInFolder}
+                  onCreateFolderInFolder={onCreateFolderInFolder}
+                  onUploadFiles={onUploadFiles}
+                  dragOverPath={dragOverPath}
+                  setDragOverPath={setDragOverPath}
+                  setIsUploading={setIsUploading}
+                />
+              ))}
+            </div>
+            
+            {/* 根目錄拖放區域 */}
+            <div 
+              className={cn(
+                "mt-2 p-3 border-2 border-dashed rounded-lg transition-all duration-200 flex items-center justify-center gap-2",
+                isDragOverRoot 
+                  ? "border-primary bg-primary/10 text-primary" 
+                  : "border-transparent text-transparent hover:border-muted hover:text-muted-foreground"
+              )}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragOverRoot(true);
+                setDragOverPath(null);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragOverRoot(false);
+              }}
+              onDrop={handleDrop}
+            >
+              <FolderInput className="w-4 h-4" />
+              <span className="text-xs">移動到根目錄</span>
+            </div>
+          </>
         )}
       </div>
 
