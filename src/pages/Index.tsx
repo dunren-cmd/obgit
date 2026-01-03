@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useGitHub, useFileTree, useFileContent } from "@/hooks/useGitHub";
 import { ConnectForm } from "@/components/ConnectForm";
 import { FileTree } from "@/components/FileTree";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
+import { CreateFileDialog } from "@/components/CreateFileDialog";
+import { DeleteFileDialog } from "@/components/DeleteFileDialog";
+import { FileSearchDialog } from "@/components/FileSearchDialog";
 import { Button } from "@/components/ui/button";
-import { LogOut, Github, Menu, X } from "lucide-react";
+import { LogOut, Github, Menu, X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Index = () => {
@@ -13,11 +16,44 @@ const Index = () => {
   const { content, isLoading: isLoadingContent, isSaving, saveStatus, load, save } = useFileContent(service);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // Dialog states
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
-  const handleSelectFile = async (path: string) => {
+  const handleSelectFile = useCallback(async (path: string) => {
     setSelectedPath(path);
     await load(path);
-  };
+  }, [load]);
+
+  const handleCreateFile = useCallback(async (path: string): Promise<boolean> => {
+    if (!service) return false;
+    try {
+      await service.createFile(path);
+      await refresh();
+      await handleSelectFile(path);
+      return true;
+    } catch (error) {
+      console.error("建立檔案失敗:", error);
+      return false;
+    }
+  }, [service, refresh, handleSelectFile]);
+
+  const handleDeleteFile = useCallback(async (): Promise<boolean> => {
+    if (!service || !content) return false;
+    try {
+      const success = await service.deleteFile(content.path, content.sha);
+      if (success) {
+        setSelectedPath(null);
+        await refresh();
+      }
+      return success;
+    } catch (error) {
+      console.error("刪除檔案失敗:", error);
+      return false;
+    }
+  }, [service, content, refresh]);
 
   // 顯示連接表單
   if (!isConnected) {
@@ -45,15 +81,31 @@ const Index = () => {
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={disconnect}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <LogOut className="w-4 h-4 mr-1.5" />
-          <span className="hidden sm:inline">登出</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Search Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsSearchDialogOpen(true)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Search className="w-4 h-4 mr-1.5" />
+            <span className="hidden sm:inline">搜尋</span>
+            <kbd className="hidden md:inline ml-2 text-xs bg-muted px-1.5 py-0.5 rounded">
+              ⌘P
+            </kbd>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={disconnect}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <LogOut className="w-4 h-4 mr-1.5" />
+            <span className="hidden sm:inline">登出</span>
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -72,6 +124,7 @@ const Index = () => {
             selectedPath={selectedPath}
             onSelectFile={handleSelectFile}
             onRefresh={refresh}
+            onCreateFile={() => setIsCreateDialogOpen(true)}
           />
         </aside>
 
@@ -91,9 +144,33 @@ const Index = () => {
             isSaving={isSaving}
             saveStatus={saveStatus}
             onSave={save}
+            onDelete={content ? () => setIsDeleteDialogOpen(true) : undefined}
+            files={files}
+            onNavigate={handleSelectFile}
           />
         </main>
       </div>
+
+      {/* Dialogs */}
+      <CreateFileDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreateFile={handleCreateFile}
+      />
+
+      <DeleteFileDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onDeleteFile={handleDeleteFile}
+        fileName={content?.name || ""}
+      />
+
+      <FileSearchDialog
+        open={isSearchDialogOpen}
+        onOpenChange={setIsSearchDialogOpen}
+        files={files}
+        onSelectFile={handleSelectFile}
+      />
     </div>
   );
 };
