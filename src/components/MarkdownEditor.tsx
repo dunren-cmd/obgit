@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileContent, FileNode, GitHubService } from "@/lib/github";
-import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload, Undo2, Redo2 } from "lucide-react";
+import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload, Undo2, Redo2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WikilinkRenderer } from "@/components/WikilinkRenderer";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
@@ -336,31 +336,50 @@ export function MarkdownEditor({
           <h2 className="font-medium text-foreground truncate max-w-xs">
             {file.name}
           </h2>
-          {/* 自動儲存狀態指示器 */}
-          <div className="flex items-center">
+          {/* 同步狀態指示器 */}
+          <div className="flex items-center gap-2">
+            {/* 同步圖示 */}
+            <div 
+              className={cn(
+                "flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300",
+                saveStatus === "saving" && "bg-primary/20",
+                saveStatus === "saved" && "bg-green-500/20",
+                saveStatus === "error" && "bg-destructive/20",
+                hasChanges && saveStatus === "idle" && "bg-warning/20",
+                !hasChanges && saveStatus === "idle" && "bg-muted"
+              )}
+            >
+              <RefreshCw 
+                className={cn(
+                  "w-3.5 h-3.5 transition-all duration-300",
+                  saveStatus === "saving" && "text-primary animate-spin",
+                  saveStatus === "saved" && "text-green-500",
+                  saveStatus === "error" && "text-destructive",
+                  hasChanges && saveStatus === "idle" && "text-warning",
+                  !hasChanges && saveStatus === "idle" && "text-muted-foreground/50"
+                )} 
+              />
+            </div>
+            
+            {/* 狀態文字 */}
             {saveStatus === "saving" ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                儲存中...
+              <span className="text-xs text-muted-foreground animate-pulse">
+                同步中...
               </span>
             ) : saveStatus === "saved" ? (
-              <span className="flex items-center gap-1.5 text-xs text-success animate-fade-in">
-                <Check className="w-3 h-3" />
-                已儲存
+              <span className="text-xs text-green-500 animate-fade-in">
+                已同步
               </span>
             ) : saveStatus === "error" ? (
-              <span className="flex items-center gap-1.5 text-xs text-destructive animate-fade-in">
-                <AlertCircle className="w-3 h-3" />
-                儲存失敗
+              <span className="text-xs text-destructive animate-fade-in">
+                同步失敗
               </span>
             ) : hasChanges ? (
-              <span className="flex items-center gap-1.5 text-xs text-warning">
-                <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
-                未儲存
+              <span className="text-xs text-warning">
+                未同步
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+              <span className="text-xs text-muted-foreground">
                 無變更
               </span>
             )}
