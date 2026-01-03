@@ -337,57 +337,54 @@ export function MarkdownEditor({
       onDrop={handleDrop}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b border-border bg-card/50 gap-2">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <h2 className="font-medium text-foreground truncate text-sm sm:text-base max-w-[120px] sm:max-w-xs">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b border-border bg-card/50 gap-1 sm:gap-2">
+        {/* 左側：檔名和狀態 */}
+        <div className="flex items-center gap-2 min-w-0 flex-shrink">
+          <h2 className="font-medium text-foreground truncate text-sm max-w-[100px] sm:max-w-xs">
             {file.name}
           </h2>
-          {/* 同步狀態指示器 */}
-          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-            {/* 同步圖示 */}
-            <div 
+          {/* 同步圖示 - 行動裝置只顯示圖示 */}
+          <div 
+            className={cn(
+              "flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full transition-all duration-300 flex-shrink-0",
+              saveStatus === "saving" && "bg-primary/20",
+              saveStatus === "saved" && "bg-green-500/20",
+              saveStatus === "error" && "bg-destructive/20",
+              hasChanges && saveStatus === "idle" && "bg-warning/20",
+              !hasChanges && saveStatus === "idle" && "bg-muted"
+            )}
+          >
+            <RefreshCw 
               className={cn(
-                "flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full transition-all duration-300",
-                saveStatus === "saving" && "bg-primary/20",
-                saveStatus === "saved" && "bg-green-500/20",
-                saveStatus === "error" && "bg-destructive/20",
-                hasChanges && saveStatus === "idle" && "bg-warning/20",
-                !hasChanges && saveStatus === "idle" && "bg-muted"
-              )}
-            >
-              <RefreshCw 
-                className={cn(
-                  "w-3 h-3 sm:w-3.5 sm:h-3.5 transition-all duration-300",
-                  saveStatus === "saving" && "text-primary animate-spin",
-                  saveStatus === "saved" && "text-green-500",
-                  saveStatus === "error" && "text-destructive",
-                  hasChanges && saveStatus === "idle" && "text-warning",
-                  !hasChanges && saveStatus === "idle" && "text-muted-foreground/50"
-                )} 
-              />
-            </div>
-            
-            {/* 狀態文字 - 行動裝置隱藏 */}
-            <span className="hidden sm:inline text-xs">
-              {saveStatus === "saving" ? (
-                <span className="text-muted-foreground animate-pulse">同步中...</span>
-              ) : saveStatus === "saved" ? (
-                <span className="text-green-500 animate-fade-in">已同步</span>
-              ) : saveStatus === "error" ? (
-                <span className="text-destructive animate-fade-in">同步失敗</span>
-              ) : hasChanges ? (
-                <span className="text-warning">未同步</span>
-              ) : (
-                <span className="text-muted-foreground">無變更</span>
-              )}
-            </span>
+                "w-3 h-3 sm:w-3.5 sm:h-3.5 transition-all duration-300",
+                saveStatus === "saving" && "text-primary animate-spin",
+                saveStatus === "saved" && "text-green-500",
+                saveStatus === "error" && "text-destructive",
+                hasChanges && saveStatus === "idle" && "text-warning",
+                !hasChanges && saveStatus === "idle" && "text-muted-foreground/50"
+              )} 
+            />
           </div>
+          {/* 狀態文字 - 只在桌面顯示 */}
+          <span className="hidden sm:inline text-xs whitespace-nowrap">
+            {saveStatus === "saving" ? (
+              <span className="text-muted-foreground animate-pulse">同步中...</span>
+            ) : saveStatus === "saved" ? (
+              <span className="text-green-500 animate-fade-in">已同步</span>
+            ) : saveStatus === "error" ? (
+              <span className="text-destructive animate-fade-in">同步失敗</span>
+            ) : hasChanges ? (
+              <span className="text-warning">未同步</span>
+            ) : (
+              <span className="text-muted-foreground">無變更</span>
+            )}
+          </span>
         </div>
 
+        {/* 右側：操作按鈕 */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-
-          {/* Undo/Redo Buttons - 行動裝置隱藏 */}
-          <div className="hidden sm:flex items-center border border-border rounded-md overflow-hidden">
+          {/* Undo/Redo - 只在桌面顯示 */}
+          <div className="hidden md:flex items-center border border-border rounded-md overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
@@ -410,36 +407,36 @@ export function MarkdownEditor({
             </Button>
           </div>
 
-          {/* Image Insert - 行動裝置隱藏 */}
+          {/* Image Insert - 只在桌面顯示 */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsImageDialogOpen(true)}
-            className="hidden sm:flex h-8 text-muted-foreground hover:text-foreground"
+            className="hidden md:flex h-8 text-muted-foreground hover:text-foreground"
           >
             <ImageIcon className="w-4 h-4" />
           </Button>
 
-          {/* View Mode Toggles - 行動裝置只顯示 edit 和 preview */}
+          {/* View Mode Toggle - 行動裝置簡化為兩個按鈕 */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode("edit")}
               className={cn(
-                "h-7 sm:h-8 w-7 sm:w-auto px-2 rounded-none border-0",
+                "h-7 w-7 p-0 rounded-none border-0",
                 viewMode === "edit" && "bg-primary/10 text-primary"
               )}
             >
               <Edit3 className="w-4 h-4" />
             </Button>
-            {/* Split 按鈕只在桌面顯示 */}
+            {/* Split - 只在大螢幕顯示 */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode("split")}
               className={cn(
-                "hidden sm:flex h-8 rounded-none border-0",
+                "hidden md:flex h-8 w-8 p-0 rounded-none border-0",
                 viewMode === "split" && "bg-primary/10 text-primary"
               )}
             >
@@ -450,7 +447,7 @@ export function MarkdownEditor({
               size="sm"
               onClick={() => setViewMode("preview")}
               className={cn(
-                "h-7 sm:h-8 w-7 sm:w-auto px-2 rounded-none border-0",
+                "h-7 w-7 p-0 rounded-none border-0",
                 viewMode === "preview" && "bg-primary/10 text-primary"
               )}
             >
@@ -458,25 +455,25 @@ export function MarkdownEditor({
             </Button>
           </div>
 
-          {/* Rename Button - 行動裝置隱藏 */}
+          {/* Rename - 只在桌面顯示 */}
           {onRename && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onRename}
-              className="hidden sm:flex h-8 text-muted-foreground hover:text-foreground"
+              className="hidden md:flex h-8 text-muted-foreground hover:text-foreground"
             >
               <Edit2 className="w-4 h-4" />
             </Button>
           )}
 
-          {/* Delete Button - 行動裝置隱藏 */}
+          {/* Delete - 只在桌面顯示 */}
           {onDelete && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onDelete}
-              className="hidden sm:flex h-8 text-muted-foreground hover:text-destructive"
+              className="hidden md:flex h-8 text-muted-foreground hover:text-destructive"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -487,14 +484,14 @@ export function MarkdownEditor({
             size="sm"
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
-            className="h-7 sm:h-8 px-2 sm:px-3 bg-primary hover:bg-primary/90"
+            className="h-7 px-2 sm:h-8 sm:px-3 bg-primary hover:bg-primary/90"
           >
             {isSaving ? (
-              <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Save className="w-4 h-4 sm:mr-1.5" />
+              <Save className="w-4 h-4" />
             )}
-            <span className="hidden sm:inline">儲存</span>
+            <span className="hidden sm:inline ml-1.5">儲存</span>
           </Button>
         </div>
       </div>
