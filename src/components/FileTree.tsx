@@ -242,15 +242,6 @@ export function FileTree({
         )}
       </div>
 
-      {/* Drag Overlay */}
-      {isDragging && (
-        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-50 pointer-events-none">
-          <div className="bg-card px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-            <Upload className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-foreground">放開以上傳檔案</span>
-          </div>
-        </div>
-      )}
 
       {/* Upload Progress Overlay */}
       {isUploading && (
