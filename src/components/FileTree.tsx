@@ -20,6 +20,7 @@ interface FileTreeProps {
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
   onUploadFiles?: (files: File[]) => Promise<void>;
+  repoBaseUrl?: string;
 }
 
 export function FileTree({
@@ -31,6 +32,7 @@ export function FileTree({
   onCreateFile,
   onCreateFolder,
   onUploadFiles,
+  repoBaseUrl,
 }: FileTreeProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -150,6 +152,7 @@ export function FileTree({
                 selectedPath={selectedPath}
                 onSelectFile={onSelectFile}
                 level={0}
+                repoBaseUrl={repoBaseUrl}
               />
             ))}
           </div>
@@ -184,12 +187,20 @@ interface FileTreeNodeProps {
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   level: number;
+  repoBaseUrl?: string;
 }
 
-function FileTreeNode({ node, selectedPath, onSelectFile, level }: FileTreeNodeProps) {
+// 判斷是否為圖片檔案
+const isImageFile = (fileName: string): boolean => {
+  const ext = fileName.toLowerCase().split('.').pop() || '';
+  return ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'].includes(ext);
+};
+
+function FileTreeNode({ node, selectedPath, onSelectFile, level, repoBaseUrl }: FileTreeNodeProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const isSelected = selectedPath === node.path;
   const isDir = node.type === "dir";
+  const isImage = !isDir && isImageFile(node.name);
 
   const handleClick = () => {
     if (isDir) {
@@ -199,13 +210,37 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level }: FileTreeNodeP
     }
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    if (isDir) {
+      e.preventDefault();
+      return;
+    }
+    
+    // 設置拖曳資料
+    e.dataTransfer.setData("text/plain", node.path);
+    e.dataTransfer.setData("application/x-file-path", node.path);
+    e.dataTransfer.setData("application/x-file-name", node.name);
+    e.dataTransfer.setData("application/x-is-image", isImage ? "true" : "false");
+    
+    // 如果有 repo base URL，設置完整的圖片 URL
+    if (repoBaseUrl && isImage) {
+      const imageUrl = `${repoBaseUrl}/${node.path}`;
+      e.dataTransfer.setData("application/x-image-url", imageUrl);
+    }
+    
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
   return (
     <div className="animate-slide-in" style={{ animationDelay: `${level * 30}ms` }}>
       <div
         onClick={handleClick}
+        draggable={!isDir}
+        onDragStart={handleDragStart}
         className={cn(
           "file-tree-item",
-          isSelected && "active"
+          isSelected && "active",
+          !isDir && "cursor-grab active:cursor-grabbing"
         )}
         style={{ paddingLeft: `${12 + level * 16}px` }}
       >
@@ -240,6 +275,7 @@ function FileTreeNode({ node, selectedPath, onSelectFile, level }: FileTreeNodeP
               selectedPath={selectedPath}
               onSelectFile={onSelectFile}
               level={level + 1}
+              repoBaseUrl={repoBaseUrl}
             />
           ))}
         </div>

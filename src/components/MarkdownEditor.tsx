@@ -205,11 +205,13 @@ export function MarkdownEditor({
       window.removeEventListener("paste", handlePaste);
     };
   }, [hasChanges, isSaving, handleSave, handleUndo, handleRedo, onUploadImage, handleInsertImage]);
+
   // 拖放上傳處理
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer.types.includes("Files")) {
+    // 檢查是否為檔案或從檔案樹拖曳
+    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes("application/x-file-path")) {
       setIsDragging(true);
     }
   }, []);
@@ -226,6 +228,7 @@ export function MarkdownEditor({
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
@@ -233,6 +236,28 @@ export function MarkdownEditor({
     e.stopPropagation();
     setIsDragging(false);
 
+    // 檢查是否從檔案樹拖曳
+    const filePath = e.dataTransfer.getData("application/x-file-path");
+    const fileName = e.dataTransfer.getData("application/x-file-name");
+    const isImage = e.dataTransfer.getData("application/x-is-image") === "true";
+    const imageUrl = e.dataTransfer.getData("application/x-image-url");
+
+    if (filePath) {
+      // 從檔案樹拖曳的檔案
+      if (isImage && imageUrl) {
+        // 圖片檔案 - 插入圖片 markdown
+        const markdown = `![${fileName}](${imageUrl})\n`;
+        handleInsertImage(markdown);
+      } else {
+        // 其他檔案 - 插入 wikilink
+        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
+        const markdown = `[[${nameWithoutExt}]]\n`;
+        handleInsertImage(markdown);
+      }
+      return;
+    }
+
+    // 處理從系統拖曳的檔案
     const droppedFiles = Array.from(e.dataTransfer.files);
     const imageFiles = droppedFiles.filter(file => file.type.startsWith("image/"));
     const htmlFiles = droppedFiles.filter(file => 
