@@ -66,11 +66,6 @@ export class GitHubService {
       const nodes: FileNode[] = [];
 
       for (const item of response.data) {
-        // 只處理 .md 檔案和目錄
-        if (item.type === "file" && !item.name.endsWith(".md")) {
-          continue;
-        }
-
         const node: FileNode = {
           name: item.name,
           path: item.path,
@@ -81,7 +76,7 @@ export class GitHubService {
         if (item.type === "dir") {
           // 遞迴獲取子目錄內容
           node.children = await this.getRepoContent(item.path);
-          // 只添加包含 .md 檔案的目錄
+          // 只添加有內容的目錄
           if (node.children.length > 0) {
             nodes.push(node);
           }
