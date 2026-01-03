@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { FileContent } from "@/lib/github";
-import { Save, Eye, Edit3, Loader2, Check, AlertCircle } from "lucide-react";
+import { FileContent, FileNode } from "@/lib/github";
+import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
+import { WikilinkRenderer } from "@/components/WikilinkRenderer";
 
 interface MarkdownEditorProps {
   file: FileContent | null;
@@ -12,7 +12,12 @@ interface MarkdownEditorProps {
   isSaving: boolean;
   saveStatus: "idle" | "saving" | "saved" | "error";
   onSave: (content: string) => Promise<boolean>;
+  onDelete?: () => void;
+  files?: FileNode[];
+  onNavigate?: (path: string) => void;
 }
+
+type ViewMode = "edit" | "preview" | "split";
 
 export function MarkdownEditor({
   file,
@@ -20,9 +25,12 @@ export function MarkdownEditor({
   isSaving,
   saveStatus,
   onSave,
+  onDelete,
+  files = [],
+  onNavigate,
 }: MarkdownEditorProps) {
   const [content, setContent] = useState("");
-  const [isPreview, setIsPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [hasChanges, setHasChanges] = useState(false);
 
   // 同步檔案內容
@@ -60,6 +68,10 @@ export function MarkdownEditor({
     await onSave(content);
   }, [content, hasChanges, isSaving, onSave]);
 
+  const handleNavigate = useCallback((path: string) => {
+    onNavigate?.(path);
+  }, [onNavigate]);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-editor">
@@ -78,6 +90,7 @@ export function MarkdownEditor({
           <Edit3 className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="text-lg">選擇一個檔案開始編輯</p>
           <p className="text-sm mt-1">從左側檔案樹選擇 Markdown 檔案</p>
+          <p className="text-xs mt-4 opacity-60">按 Ctrl/Cmd + P 搜尋檔案</p>
         </div>
       </div>
     );
@@ -119,19 +132,54 @@ export function MarkdownEditor({
             )}
           </div>
 
-          {/* Toggle Preview */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsPreview(!isPreview)}
-            className={cn(
-              "h-8",
-              isPreview && "bg-primary/10 text-primary"
-            )}
-          >
-            <Eye className="w-4 h-4 mr-1.5" />
-            預覽
-          </Button>
+          {/* View Mode Toggles */}
+          <div className="flex items-center border border-border rounded-md overflow-hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("edit")}
+              className={cn(
+                "h-8 rounded-none border-0",
+                viewMode === "edit" && "bg-primary/10 text-primary"
+              )}
+            >
+              <Edit3 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("split")}
+              className={cn(
+                "h-8 rounded-none border-0",
+                viewMode === "split" && "bg-primary/10 text-primary"
+              )}
+            >
+              <Columns className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("preview")}
+              className={cn(
+                "h-8 rounded-none border-0",
+                viewMode === "preview" && "bg-primary/10 text-primary"
+              )}
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Delete Button */}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="h-8 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
 
           {/* Save Button */}
           <Button
@@ -151,20 +199,36 @@ export function MarkdownEditor({
       </div>
 
       {/* Editor / Preview */}
-      <div className="flex-1 overflow-hidden">
-        {isPreview ? (
-          <div className="h-full overflow-y-auto p-6">
+      <div className="flex-1 overflow-hidden flex">
+        {/* Editor Panel */}
+        {(viewMode === "edit" || viewMode === "split") && (
+          <div className={cn(
+            "flex-1 overflow-hidden",
+            viewMode === "split" && "border-r border-border"
+          )}>
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="h-full w-full resize-none border-0 rounded-none bg-transparent p-6 focus-visible:ring-0 focus-visible:ring-offset-0 editor-content text-foreground"
+              placeholder="開始輸入你的筆記..."
+            />
+          </div>
+        )}
+
+        {/* Preview Panel */}
+        {(viewMode === "preview" || viewMode === "split") && (
+          <div className={cn(
+            "flex-1 overflow-y-auto p-6",
+            viewMode === "split" && "bg-background/50"
+          )}>
             <div className="max-w-3xl mx-auto markdown-preview animate-fade-in">
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <WikilinkRenderer
+                content={content}
+                files={files}
+                onNavigate={handleNavigate}
+              />
             </div>
           </div>
-        ) : (
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="h-full w-full resize-none border-0 rounded-none bg-transparent p-6 focus-visible:ring-0 focus-visible:ring-offset-0 editor-content text-foreground"
-            placeholder="開始輸入你的筆記..."
-          />
         )}
       </div>
     </div>
