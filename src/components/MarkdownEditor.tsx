@@ -118,31 +118,6 @@ export function MarkdownEditor({
     setContent(history[newIndex]);
   }, [canRedo, historyIndex, history]);
 
-  // 鍵盤快捷鍵
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (hasChanges && !isSaving) {
-          handleSave();
-        }
-      }
-      // Ctrl/Cmd + Z = Undo
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      }
-      // Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y = Redo
-      if ((e.metaKey || e.ctrlKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasChanges, isSaving, content, handleUndo, handleRedo]);
-
   const handleSave = useCallback(async () => {
     if (!hasChanges || isSaving) return;
     await onSave(content);
@@ -171,6 +146,65 @@ export function MarkdownEditor({
     });
   }, [content]);
 
+  // 處理剪貼簿貼上圖片
+  const handlePaste = useCallback(async (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items || !onUploadImage) return;
+
+    const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+    setIsUploading(true);
+
+    try {
+      for (const item of imageItems) {
+        const file = item.getAsFile();
+        if (file) {
+          // 生成檔名：screenshot_日期時間.png
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          const namedFile = new File([file], `screenshot_${timestamp}.png`, { type: file.type });
+          
+          const url = await onUploadImage(namedFile);
+          if (url) {
+            const markdown = `![screenshot](${url})\n`;
+            handleInsertImage(markdown);
+          }
+        }
+      }
+    } finally {
+      setIsUploading(false);
+    }
+  }, [onUploadImage, handleInsertImage]);
+
+  // 鍵盤快捷鍵
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (hasChanges && !isSaving) {
+          handleSave();
+        }
+      }
+      // Ctrl/Cmd + Z = Undo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      // Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y = Redo
+      if ((e.metaKey || e.ctrlKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [hasChanges, isSaving, handleSave, handleUndo, handleRedo, handlePaste]);
   // 拖放上傳處理
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
