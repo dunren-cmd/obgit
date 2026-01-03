@@ -240,6 +240,7 @@ const Index = () => {
               onCreateFile={() => setIsCreateDialogOpen(true)}
               onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
               onUploadFiles={handleUploadFiles}
+              repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
             />
           </div>
         </aside>
