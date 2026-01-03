@@ -1,11 +1,14 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { FileNode } from "@/lib/github";
+import { FileNode, GitHubService } from "@/lib/github";
+import { Loader2 } from "lucide-react";
 
 interface WikilinkRendererProps {
   content: string;
   files: FileNode[];
   onNavigate: (path: string) => void;
+  githubService?: GitHubService | null;
+  repoBaseUrl?: string;
 }
 
 function flattenFiles(nodes: FileNode[], result: FileNode[] = []): FileNode[] {
@@ -20,10 +23,77 @@ function flattenFiles(nodes: FileNode[], result: FileNode[] = []): FileNode[] {
   return result;
 }
 
+// 圖片元件 - 支援從 GitHub API 載入私有 repo 圖片
+function GitHubImage({ 
+  src, 
+  alt, 
+  githubService,
+  repoBaseUrl 
+}: { 
+  src: string; 
+  alt: string; 
+  githubService?: GitHubService | null;
+  repoBaseUrl?: string;
+}) {
+  const [imageSrc, setImageSrc] = useState<string>(src);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    // 如果是 raw.githubusercontent.com 的連結且有 service，嘗試用 API 載入
+    if (githubService && repoBaseUrl && src.startsWith(repoBaseUrl)) {
+      const path = src.replace(repoBaseUrl + '/', '');
+      setIsLoading(true);
+      setError(false);
+      
+      githubService.getImageDataUrl(path)
+        .then((dataUrl) => {
+          if (dataUrl) {
+            setImageSrc(dataUrl);
+          }
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setIsLoading(false);
+          // 保持原始 URL，讓 onError 處理
+        });
+    }
+  }, [src, githubService, repoBaseUrl]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-4 bg-muted/30 rounded-lg my-4">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">載入圖片中...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-destructive text-sm p-2 bg-destructive/10 rounded border border-destructive/20 my-4">
+        無法載入圖片: {alt || src}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt={alt || ""}
+      className="max-w-full h-auto rounded-lg my-4"
+      loading="lazy"
+      onError={() => setError(true)}
+    />
+  );
+}
+
 export function WikilinkRenderer({
   content,
   files,
   onNavigate,
+  githubService,
+  repoBaseUrl,
 }: WikilinkRendererProps) {
   const flatFiles = useMemo(() => flattenFiles(files), [files]);
 
@@ -106,6 +176,17 @@ export function WikilinkRenderer({
             >
               {children}
             </a>
+          );
+        },
+        img: ({ src, alt }) => {
+          if (!src) return null;
+          return (
+            <GitHubImage 
+              src={src} 
+              alt={alt || ""} 
+              githubService={githubService}
+              repoBaseUrl={repoBaseUrl}
+            />
           );
         },
       }}
