@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { FileNode } from "@/lib/github";
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw } from "lucide-react";
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface FileTreeProps {
   files: FileNode[];
@@ -11,6 +17,7 @@ interface FileTreeProps {
   onSelectFile: (path: string) => void;
   onRefresh: () => void;
   onCreateFile?: () => void;
+  onCreateFolder?: () => void;
 }
 
 export function FileTree({
@@ -20,6 +27,7 @@ export function FileTree({
   onSelectFile,
   onRefresh,
   onCreateFile,
+  onCreateFolder,
 }: FileTreeProps) {
   return (
     <div className="h-full flex flex-col bg-sidebar">
@@ -27,15 +35,32 @@ export function FileTree({
       <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
         <span className="text-sm font-medium text-sidebar-foreground">檔案</span>
         <div className="flex items-center gap-1">
-          {onCreateFile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={onCreateFile}
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
+          {(onCreateFile || onCreateFolder) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {onCreateFile && (
+                  <DropdownMenuItem onClick={onCreateFile}>
+                    <File className="w-4 h-4 mr-2" />
+                    新增檔案
+                  </DropdownMenuItem>
+                )}
+                {onCreateFolder && (
+                  <DropdownMenuItem onClick={onCreateFolder}>
+                    <FolderPlus className="w-4 h-4 mr-2" />
+                    新增資料夾
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button
             variant="ghost"

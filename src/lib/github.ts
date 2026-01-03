@@ -216,6 +216,79 @@ export class GitHubService {
       name: path.split("/").pop() || path,
     };
   }
+
+  /**
+   * 重新命名檔案（透過建立新檔案並刪除舊檔案）
+   */
+  async renameFile(oldPath: string, newPath: string): Promise<FileContent> {
+    try {
+      // 獲取原始檔案內容
+      const oldContent = await this.getFileContent(oldPath);
+      
+      // 建立新檔案
+      const newFile = await this.createFile(newPath, oldContent.content);
+      
+      // 刪除舊檔案
+      if (oldContent.sha) {
+        await this.deleteFile(oldPath, oldContent.sha);
+      }
+      
+      return newFile;
+    } catch (error) {
+      console.error("重新命名檔案失敗:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 建立資料夾（透過建立一個 .gitkeep 或 placeholder 檔案）
+   */
+  async createFolder(path: string): Promise<boolean> {
+    try {
+      // GitHub 不支援空資料夾，需要建立一個佔位檔案
+      const placeholderPath = `${path}/.gitkeep`;
+      await this.saveFile(placeholderPath, "", undefined, `建立資料夾 ${path} via Web`);
+      return true;
+    } catch (error) {
+      console.error("建立資料夾失敗:", error);
+      return false;
+    }
+  }
+
+  /**
+   * 上傳圖片到儲存庫
+   */
+  async uploadImage(file: File, folder: string = "attachments"): Promise<string> {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ""
+        )
+      );
+      
+      // 生成唯一檔名
+      const timestamp = Date.now();
+      const extension = file.name.split(".").pop() || "png";
+      const fileName = `${timestamp}.${extension}`;
+      const path = `${folder}/${fileName}`;
+
+      await this.octokit.rest.repos.createOrUpdateFileContents({
+        owner: this.owner,
+        repo: this.repo,
+        path,
+        message: `上傳圖片 ${fileName} via Web`,
+        content: base64,
+      });
+
+      // 返回 raw GitHub URL
+      return `https://raw.githubusercontent.com/${this.owner}/${this.repo}/main/${path}`;
+    } catch (error) {
+      console.error("上傳圖片失敗:", error);
+      throw error;
+    }
+  }
 }
 
 // 全域實例管理

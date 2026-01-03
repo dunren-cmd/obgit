@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useGitHub, useFileTree, useFileContent } from "@/hooks/useGitHub";
 import { ConnectForm } from "@/components/ConnectForm";
 import { FileTree } from "@/components/FileTree";
@@ -6,8 +6,11 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { CreateFileDialog } from "@/components/CreateFileDialog";
 import { DeleteFileDialog } from "@/components/DeleteFileDialog";
 import { FileSearchDialog } from "@/components/FileSearchDialog";
+import { RenameFileDialog } from "@/components/RenameFileDialog";
+import { CreateFolderDialog } from "@/components/CreateFolderDialog";
+import { TagsPanel } from "@/components/TagsPanel";
 import { Button } from "@/components/ui/button";
-import { LogOut, Github, Menu, X, Search } from "lucide-react";
+import { LogOut, Github, Menu, X, Search, Hash, FolderPlus, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Index = () => {
@@ -16,11 +19,27 @@ const Index = () => {
   const { content, isLoading: isLoadingContent, isSaving, saveStatus, load, save } = useFileContent(service);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showTagsPanel, setShowTagsPanel] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
   
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
+
+  // 當檔案內容變更時更新快取（用於標籤面板）
+  useEffect(() => {
+    if (content && selectedPath) {
+      setFileContents((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(selectedPath, content.content);
+        return newMap;
+      });
+    }
+  }, [content, selectedPath]);
 
   const handleSelectFile = useCallback(async (path: string) => {
     setSelectedPath(path);
@@ -46,6 +65,11 @@ const Index = () => {
       const success = await service.deleteFile(content.path, content.sha);
       if (success) {
         setSelectedPath(null);
+        setFileContents((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(content.path);
+          return newMap;
+        });
         await refresh();
       }
       return success;
@@ -54,6 +78,54 @@ const Index = () => {
       return false;
     }
   }, [service, content, refresh]);
+
+  const handleRenameFile = useCallback(async (newPath: string): Promise<boolean> => {
+    if (!service || !content) return false;
+    try {
+      await service.renameFile(content.path, newPath);
+      // 更新快取
+      setFileContents((prev) => {
+        const newMap = new Map(prev);
+        const oldContent = newMap.get(content.path);
+        if (oldContent) {
+          newMap.delete(content.path);
+          newMap.set(newPath, oldContent);
+        }
+        return newMap;
+      });
+      await refresh();
+      await handleSelectFile(newPath);
+      return true;
+    } catch (error) {
+      console.error("重新命名失敗:", error);
+      return false;
+    }
+  }, [service, content, refresh, handleSelectFile]);
+
+  const handleCreateFolder = useCallback(async (path: string): Promise<boolean> => {
+    if (!service) return false;
+    try {
+      const success = await service.createFolder(path);
+      if (success) {
+        await refresh();
+      }
+      return success;
+    } catch (error) {
+      console.error("建立資料夾失敗:", error);
+      return false;
+    }
+  }, [service, refresh]);
+
+  const handleUploadImage = useCallback(async (file: File): Promise<string | null> => {
+    if (!service) return null;
+    try {
+      const url = await service.uploadImage(file);
+      return url;
+    } catch (error) {
+      console.error("上傳圖片失敗:", error);
+      return null;
+    }
+  }, [service]);
 
   // 顯示連接表單
   if (!isConnected) {
@@ -82,6 +154,20 @@ const Index = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Tags Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowTagsPanel(!showTagsPanel)}
+            className={cn(
+              "text-muted-foreground hover:text-foreground",
+              showTagsPanel && "bg-primary/10 text-primary"
+            )}
+          >
+            <Hash className="w-4 h-4 mr-1.5" />
+            <span className="hidden sm:inline">標籤</span>
+          </Button>
+
           {/* Search Button */}
           <Button
             variant="ghost"
@@ -113,19 +199,36 @@ const Index = () => {
         {/* Sidebar */}
         <aside
           className={cn(
-            "w-64 border-r border-sidebar-border flex-shrink-0 transition-all duration-300",
+            "w-64 border-r border-sidebar-border flex-shrink-0 transition-all duration-300 flex flex-col",
             "absolute lg:relative z-10 h-[calc(100vh-49px)] lg:h-auto",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:w-0 lg:overflow-hidden"
           )}
         >
-          <FileTree
-            files={files}
-            isLoading={isLoadingFiles}
-            selectedPath={selectedPath}
-            onSelectFile={handleSelectFile}
-            onRefresh={refresh}
-            onCreateFile={() => setIsCreateDialogOpen(true)}
-          />
+          {/* Tags Panel (Collapsible) */}
+          {showTagsPanel && (
+            <div className="h-48 border-b border-sidebar-border bg-sidebar overflow-hidden">
+              <TagsPanel
+                files={files}
+                fileContents={fileContents}
+                selectedTag={selectedTag}
+                onSelectTag={setSelectedTag}
+                onSelectFile={handleSelectFile}
+              />
+            </div>
+          )}
+
+          {/* File Tree */}
+          <div className="flex-1 overflow-hidden">
+            <FileTree
+              files={files}
+              isLoading={isLoadingFiles}
+              selectedPath={selectedPath}
+              onSelectFile={handleSelectFile}
+              onRefresh={refresh}
+              onCreateFile={() => setIsCreateDialogOpen(true)}
+              onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+            />
+          </div>
         </aside>
 
         {/* Overlay for mobile */}
@@ -145,8 +248,10 @@ const Index = () => {
             saveStatus={saveStatus}
             onSave={save}
             onDelete={content ? () => setIsDeleteDialogOpen(true) : undefined}
+            onRename={content ? () => setIsRenameDialogOpen(true) : undefined}
             files={files}
             onNavigate={handleSelectFile}
+            onUploadImage={handleUploadImage}
           />
         </main>
       </div>
@@ -170,6 +275,20 @@ const Index = () => {
         onOpenChange={setIsSearchDialogOpen}
         files={files}
         onSelectFile={handleSelectFile}
+      />
+
+      <RenameFileDialog
+        open={isRenameDialogOpen}
+        onOpenChange={setIsRenameDialogOpen}
+        onRename={handleRenameFile}
+        currentPath={content?.path || ""}
+        currentName={content?.name || ""}
+      />
+
+      <CreateFolderDialog
+        open={isCreateFolderDialogOpen}
+        onOpenChange={setIsCreateFolderDialogOpen}
+        onCreateFolder={handleCreateFolder}
       />
     </div>
   );
