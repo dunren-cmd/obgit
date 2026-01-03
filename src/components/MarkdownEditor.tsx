@@ -62,6 +62,10 @@ export function MarkdownEditor({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isUndoRedoRef = useRef(false);
   
+  // 觸控滑動手勢
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchEndRef = useRef<{ x: number; y: number } | null>(null);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -216,6 +220,47 @@ export function MarkdownEditor({
     };
   }, [hasChanges, isSaving, handleSave, handleUndo, handleRedo, onUploadImage, handleInsertImage]);
 
+  // 觸控滑動手勢處理
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+    touchEndRef.current = null;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchEndRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchStartRef.current || !touchEndRef.current) return;
+    
+    const deltaX = touchEndRef.current.x - touchStartRef.current.x;
+    const deltaY = touchEndRef.current.y - touchStartRef.current.y;
+    const minSwipeDistance = 80; // 最小滑動距離
+    
+    // 確保是水平滑動（水平距離大於垂直距離）
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+      // 只在行動裝置上切換（非 split 模式時）
+      if (window.innerWidth < 768) {
+        if (deltaX > 0) {
+          // 向右滑動 -> 切換到編輯模式
+          setViewMode("edit");
+        } else {
+          // 向左滑動 -> 切換到預覽模式
+          setViewMode("preview");
+        }
+      }
+    }
+    
+    touchStartRef.current = null;
+    touchEndRef.current = null;
+  }, []);
+
   // 拖放上傳處理
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -330,11 +375,14 @@ export function MarkdownEditor({
   return (
     <div 
       ref={editorRef}
-      className="flex-1 flex flex-col bg-editor relative"
+      className="flex-1 flex flex-col bg-editor relative touch-pan-y"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between px-2 sm:px-4 py-2 border-b border-border bg-card/50 gap-2">
