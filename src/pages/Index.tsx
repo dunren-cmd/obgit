@@ -20,7 +20,7 @@ const ROOT_FOLDER_STORAGE_KEY = "obsidian-web-root-folder";
 
 const Index = () => {
   const { isConnected, isConnecting, error, config, connect, disconnect, service } = useGitHub();
-  const { files, isLoading: isLoadingFiles, refresh } = useFileTree(service);
+  const { files, isLoading: isLoadingFiles, isLoaded: isFilesLoaded, refresh } = useFileTree(service, false); // 不自動載入
   const { content, isLoading: isLoadingContent, isSaving, saveStatus, load, save } = useFileContent(service);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -423,6 +423,7 @@ const Index = () => {
             <FileTree
               files={filteredFiles}
               isLoading={isLoadingFiles}
+              isLoaded={isFilesLoaded}
               selectedPath={selectedPath}
               onSelectFile={handleSelectFile}
               onRefresh={refresh}

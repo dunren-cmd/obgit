@@ -138,13 +138,15 @@ interface UseFileTreeReturn {
   files: FileNode[];
   isLoading: boolean;
   error: string | null;
+  isLoaded: boolean;
   refresh: () => Promise<void>;
 }
 
-export function useFileTree(service: GitHubService | null): UseFileTreeReturn {
+export function useFileTree(service: GitHubService | null, autoLoad: boolean = false): UseFileTreeReturn {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!service) return;
@@ -155,6 +157,7 @@ export function useFileTree(service: GitHubService | null): UseFileTreeReturn {
     try {
       const tree = await service.getRepoContent();
       setFiles(tree);
+      setIsLoaded(true);
     } catch (err: any) {
       setError(err.message || "載入檔案失敗");
     } finally {
@@ -163,12 +166,20 @@ export function useFileTree(service: GitHubService | null): UseFileTreeReturn {
   }, [service]);
 
   useEffect(() => {
-    if (service) {
+    if (service && autoLoad && !isLoaded) {
       refresh();
     }
-  }, [service, refresh]);
+  }, [service, autoLoad, isLoaded, refresh]);
 
-  return { files, isLoading, error, refresh };
+  // 重置狀態當 service 變更
+  useEffect(() => {
+    if (!service) {
+      setFiles([]);
+      setIsLoaded(false);
+    }
+  }, [service]);
+
+  return { files, isLoading, error, isLoaded, refresh };
 }
 
 interface UseFileContentReturn {
