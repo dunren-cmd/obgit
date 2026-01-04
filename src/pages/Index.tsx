@@ -320,7 +320,7 @@ const Index = () => {
     <div className="h-screen flex flex-col bg-background">
       {/* Top Bar */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Button
             variant="ghost"
             size="icon"
@@ -335,48 +335,50 @@ const Index = () => {
               {config?.owner}/{config?.repo}
             </span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Root Folder Setting */}
+          
+          {/* Root Folder Setting - 移到 repo 名稱旁邊 */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsRootFolderDialogOpen(true)}
             className={cn(
-              "text-muted-foreground hover:text-foreground",
+              "text-muted-foreground hover:text-foreground h-8",
               rootFolder && "bg-primary/10 text-primary"
             )}
             title={rootFolder ? `目前根目錄：${rootFolder}` : "設定預設目錄"}
           >
-            <FolderRoot className="w-4 h-4 mr-1.5" />
+            <FolderRoot className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline truncate max-w-20">
               {rootFolder || "根目錄"}
             </span>
           </Button>
+        </div>
 
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Tags Toggle */}
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={() => setShowTagsPanel(!showTagsPanel)}
             className={cn(
-              "text-muted-foreground hover:text-foreground",
+              "text-muted-foreground hover:text-foreground h-8 w-8 sm:w-auto sm:px-3",
               showTagsPanel && "bg-primary/10 text-primary"
             )}
+            title="標籤"
           >
-            <Hash className="w-4 h-4 mr-1.5" />
+            <Hash className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline">標籤</span>
           </Button>
 
           {/* Search Button */}
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={() => setIsSearchDialogOpen(true)}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground h-8 w-8 sm:w-auto sm:px-3"
+            title="搜尋 (⌘P)"
           >
-            <Search className="w-4 h-4 mr-1.5" />
+            <Search className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline">搜尋</span>
             <kbd className="hidden md:inline ml-2 text-xs bg-muted px-1.5 py-0.5 rounded">
               ⌘P
@@ -385,11 +387,12 @@ const Index = () => {
 
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={disconnect}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground h-8 w-8 sm:w-auto sm:px-3"
+            title="登出"
           >
-            <LogOut className="w-4 h-4 mr-1.5" />
+            <LogOut className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline">登出</span>
           </Button>
         </div>
