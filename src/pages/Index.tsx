@@ -339,10 +339,10 @@ const Index = () => {
           {/* Root Folder Setting - 移到 repo 名稱旁邊 */}
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={() => setIsRootFolderDialogOpen(true)}
             className={cn(
-              "text-muted-foreground hover:text-foreground h-8",
+              "text-muted-foreground hover:text-foreground h-8 w-8 sm:w-auto sm:px-3",
               rootFolder && "bg-primary/10 text-primary"
             )}
             title={rootFolder ? `目前根目錄：${rootFolder}` : "設定預設目錄"}
