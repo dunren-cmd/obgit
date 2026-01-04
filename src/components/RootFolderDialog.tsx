@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { FileNode } from "@/lib/github";
+import { useState, useEffect, useCallback } from "react";
+import { FileNode, GitHubService } from "@/lib/github";
 import {
   Dialog,
   DialogContent,
@@ -11,34 +11,56 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Folder, FolderOpen, X } from "lucide-react";
+import { Folder, FolderOpen, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface RootFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  folders: FileNode[];
   currentRootFolder: string;
   onSetRootFolder: (path: string) => void;
+  service: GitHubService | null;
 }
 
 export function RootFolderDialog({
   open,
   onOpenChange,
-  folders,
   currentRootFolder,
   onSetRootFolder,
+  service,
 }: RootFolderDialogProps) {
   const [selectedFolder, setSelectedFolder] = useState(currentRootFolder);
   const [customPath, setCustomPath] = useState("");
+  const [folders, setFolders] = useState<{ path: string; name: string; level: number }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 載入目錄列表
+  const loadFolders = useCallback(async () => {
+    if (!service) return;
+    
+    setIsLoading(true);
+    try {
+      const tree = await service.getRepoContent();
+      const allFolders = getAllFolders(tree);
+      setFolders(allFolders);
+    } catch (error) {
+      console.error("載入目錄失敗:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [service]);
 
   useEffect(() => {
     if (open) {
       setSelectedFolder(currentRootFolder);
       setCustomPath(currentRootFolder);
+      // 開啟對話框時載入目錄
+      if (folders.length === 0) {
+        loadFolders();
+      }
     }
-  }, [open, currentRootFolder]);
+  }, [open, currentRootFolder, folders.length, loadFolders]);
 
   // 遞迴取得所有資料夾
   const getAllFolders = (nodes: FileNode[], parentPath: string = ""): { path: string; name: string; level: number }[] => {
@@ -55,8 +77,6 @@ export function RootFolderDialog({
     }
     return result;
   };
-
-  const allFolders = getAllFolders(folders);
 
   const handleConfirm = () => {
     onSetRootFolder(selectedFolder);
@@ -107,45 +127,63 @@ export function RootFolderDialog({
           </div>
 
           {/* 資料夾列表 */}
-          {allFolders.length > 0 && (
-            <div className="space-y-2">
-              <Label>或選擇資料夾</Label>
-              <ScrollArea className="h-48 rounded-md border">
-                <div className="p-2 space-y-0.5">
-                  {/* 根目錄選項 */}
-                  <button
-                    onClick={() => handleSelectFolder("")}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
-                      selectedFolder === ""
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted"
-                    )}
-                  >
-                    <FolderOpen className="w-4 h-4 flex-shrink-0" />
-                    <span className="font-medium">/ （顯示全部）</span>
-                  </button>
-
-                  {allFolders.map((folder) => (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>選擇資料夾</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadFolders}
+                disabled={isLoading}
+                className="h-7 px-2"
+              >
+                <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+              </Button>
+            </div>
+            <ScrollArea className="h-48 rounded-md border">
+              <div className="p-2 space-y-0.5">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                    載入中...
+                  </div>
+                ) : (
+                  <>
+                    {/* 根目錄選項 */}
                     <button
-                      key={folder.path}
-                      onClick={() => handleSelectFolder(folder.path)}
+                      onClick={() => handleSelectFolder("")}
                       className={cn(
                         "w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
-                        selectedFolder === folder.path
+                        selectedFolder === ""
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-muted"
                       )}
-                      style={{ paddingLeft: `${12 + folder.level * 16}px` }}
                     >
-                      <Folder className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate">{folder.name}</span>
+                      <FolderOpen className="w-4 h-4 flex-shrink-0" />
+                      <span className="font-medium">/ （顯示全部）</span>
                     </button>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
+
+                    {folders.map((folder) => (
+                      <button
+                        key={folder.path}
+                        onClick={() => handleSelectFolder(folder.path)}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
+                          selectedFolder === folder.path
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-muted"
+                        )}
+                        style={{ paddingLeft: `${12 + folder.level * 16}px` }}
+                      >
+                        <Folder className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{folder.name}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
 
         <DialogFooter>
