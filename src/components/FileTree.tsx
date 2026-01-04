@@ -22,6 +22,7 @@ import {
 interface FileTreeProps {
   files: FileNode[];
   isLoading: boolean;
+  isLoaded?: boolean;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   onRefresh: () => void;
@@ -39,6 +40,7 @@ interface FileTreeProps {
 export function FileTree({
   files,
   isLoading,
+  isLoaded = true,
   selectedPath,
   onSelectFile,
   onRefresh,
@@ -203,8 +205,23 @@ export function FileTree({
         onDragLeave={handleRootDragLeave}
         onDrop={handleDrop}
       >
-        {isLoading && files.length === 0 ? (
+        {!isLoaded && !isLoading ? (
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
+            <Folder className="w-8 h-8 mb-3 opacity-50" />
+            <p className="mb-3">點擊載入檔案列表</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              className="gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              載入檔案
+            </Button>
+          </div>
+        ) : isLoading && files.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+            <RefreshCw className="w-4 h-4 animate-spin mr-2" />
             載入中...
           </div>
         ) : files.length === 0 ? (
