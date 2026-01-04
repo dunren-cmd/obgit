@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useGitHub, useFileTree, useFileContent } from "@/hooks/useGitHub";
 import { ConnectForm } from "@/components/ConnectForm";
 import { FileTree } from "@/components/FileTree";
@@ -8,11 +8,15 @@ import { DeleteFileDialog } from "@/components/DeleteFileDialog";
 import { FileSearchDialog } from "@/components/FileSearchDialog";
 import { RenameFileDialog } from "@/components/RenameFileDialog";
 import { CreateFolderDialog } from "@/components/CreateFolderDialog";
+import { RootFolderDialog } from "@/components/RootFolderDialog";
 import { TagsPanel } from "@/components/TagsPanel";
 import { Button } from "@/components/ui/button";
-import { LogOut, Github, Menu, X, Search, Hash, FolderPlus, Edit2 } from "lucide-react";
+import { LogOut, Github, Menu, X, Search, Hash, FolderRoot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { FileNode } from "@/lib/github";
+
+const ROOT_FOLDER_STORAGE_KEY = "obsidian-web-root-folder";
 
 const Index = () => {
   const { isConnected, isConnecting, error, config, connect, disconnect, service } = useGitHub();
@@ -24,17 +28,55 @@ const Index = () => {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
   
+  // 預設根目錄
+  const [rootFolder, setRootFolder] = useState<string>(() => {
+    return localStorage.getItem(ROOT_FOLDER_STORAGE_KEY) || "";
+  });
+  
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
+  const [isRootFolderDialogOpen, setIsRootFolderDialogOpen] = useState(false);
   
   // 目標資料夾（用於在特定目錄下建立檔案/資料夾）
   const [targetFolder, setTargetFolder] = useState<string>("");
   // 重命名時的原始路徑
   const [renameTargetPath, setRenameTargetPath] = useState<string>("");
+
+  // 過濾檔案樹，只顯示指定根目錄下的內容
+  const filteredFiles = useMemo(() => {
+    if (!rootFolder) return files;
+    
+    // 找到根目錄節點
+    const findFolder = (nodes: FileNode[], path: string): FileNode[] | null => {
+      const parts = path.split("/").filter(Boolean);
+      let current = nodes;
+      
+      for (const part of parts) {
+        const found = current.find(n => n.name === part && n.type === "dir");
+        if (!found || !found.children) return null;
+        current = found.children;
+      }
+      
+      return current;
+    };
+    
+    return findFolder(files, rootFolder) || files;
+  }, [files, rootFolder]);
+
+  // 設定根目錄
+  const handleSetRootFolder = useCallback((path: string) => {
+    setRootFolder(path);
+    localStorage.setItem(ROOT_FOLDER_STORAGE_KEY, path);
+    if (path) {
+      toast.success(`已設定預設目錄：${path}`);
+    } else {
+      toast.success("已清除預設目錄設定");
+    }
+  }, []);
 
   // 當檔案內容變更時更新快取（用於標籤面板）
   useEffect(() => {
@@ -296,6 +338,23 @@ const Index = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Root Folder Setting */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsRootFolderDialogOpen(true)}
+            className={cn(
+              "text-muted-foreground hover:text-foreground",
+              rootFolder && "bg-primary/10 text-primary"
+            )}
+            title={rootFolder ? `目前根目錄：${rootFolder}` : "設定預設目錄"}
+          >
+            <FolderRoot className="w-4 h-4 mr-1.5" />
+            <span className="hidden sm:inline truncate max-w-20">
+              {rootFolder || "根目錄"}
+            </span>
+          </Button>
+
           {/* Tags Toggle */}
           <Button
             variant="ghost"
@@ -362,17 +421,17 @@ const Index = () => {
           {/* File Tree */}
           <div className="flex-1 overflow-hidden">
             <FileTree
-              files={files}
+              files={filteredFiles}
               isLoading={isLoadingFiles}
               selectedPath={selectedPath}
               onSelectFile={handleSelectFile}
               onRefresh={refresh}
               onCreateFile={() => {
-                setTargetFolder("");
+                setTargetFolder(rootFolder);
                 setIsCreateDialogOpen(true);
               }}
               onCreateFolder={() => {
-                setTargetFolder("");
+                setTargetFolder(rootFolder);
                 setIsCreateFolderDialogOpen(true);
               }}
               onUploadFiles={handleUploadFiles}
@@ -451,6 +510,14 @@ const Index = () => {
         onOpenChange={handleCreateFolderDialogChange}
         onCreateFolder={handleCreateFolder}
         currentFolder={targetFolder}
+      />
+
+      <RootFolderDialog
+        open={isRootFolderDialogOpen}
+        onOpenChange={setIsRootFolderDialogOpen}
+        folders={files}
+        currentRootFolder={rootFolder}
+        onSetRootFolder={handleSetRootFolder}
       />
     </div>
   );
