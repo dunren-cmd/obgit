@@ -312,7 +312,7 @@ function FileTreeNode({
   setDragOverPath,
   setIsUploading,
 }: FileTreeNodeProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const isSelected = selectedPath === node.path;
   const isDir = node.type === "dir";
