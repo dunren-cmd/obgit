@@ -516,9 +516,9 @@ const Index = () => {
       <RootFolderDialog
         open={isRootFolderDialogOpen}
         onOpenChange={setIsRootFolderDialogOpen}
-        folders={files}
         currentRootFolder={rootFolder}
         onSetRootFolder={handleSetRootFolder}
+        service={service}
       />
     </div>
   );
