@@ -11,6 +11,7 @@ import { CreateFolderDialog } from "@/components/CreateFolderDialog";
 import { RootFolderDialog } from "@/components/RootFolderDialog";
 import { TagsPanel } from "@/components/TagsPanel";
 import { Button } from "@/components/ui/button";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { LogOut, Github, Menu, X, Search, Hash, FolderRoot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -400,12 +401,12 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Mobile Sidebar */}
         <aside
           className={cn(
-            "w-64 border-r border-sidebar-border flex-shrink-0 transition-all duration-300 flex flex-col",
-            "absolute lg:relative z-10 h-[calc(100vh-49px)] lg:h-auto",
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:w-0 lg:overflow-hidden"
+            "w-64 border-r border-sidebar-border flex-shrink-0 transition-all duration-300 flex flex-col lg:hidden",
+            "absolute z-10 h-[calc(100vh-49px)]",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
           {/* Tags Panel (Collapsible) */}
@@ -457,8 +458,80 @@ const Index = () => {
           />
         )}
 
-        {/* Editor */}
-        <main className="flex-1 flex overflow-hidden">
+        {/* Desktop Resizable Layout */}
+        <ResizablePanelGroup direction="horizontal" className="hidden lg:flex flex-1">
+          {/* Desktop Sidebar Panel */}
+          {isSidebarOpen && (
+            <>
+              <ResizablePanel defaultSize={20} minSize={15} maxSize={40} className="flex flex-col">
+                {/* Tags Panel (Collapsible) */}
+                {showTagsPanel && (
+                  <div className="h-48 border-b border-sidebar-border bg-sidebar overflow-hidden">
+                    <TagsPanel
+                      files={files}
+                      fileContents={fileContents}
+                      selectedTag={selectedTag}
+                      onSelectTag={setSelectedTag}
+                      onSelectFile={handleSelectFile}
+                    />
+                  </div>
+                )}
+
+                {/* File Tree */}
+                <div className="flex-1 overflow-hidden">
+                  <FileTree
+                    files={filteredFiles}
+                    isLoading={isLoadingFiles}
+                    isLoaded={isFilesLoaded}
+                    selectedPath={selectedPath}
+                    onSelectFile={handleSelectFile}
+                    onRefresh={refresh}
+                    onCreateFile={() => {
+                      setTargetFolder(rootFolder);
+                      setIsCreateDialogOpen(true);
+                    }}
+                    onCreateFolder={() => {
+                      setTargetFolder(rootFolder);
+                      setIsCreateFolderDialogOpen(true);
+                    }}
+                    onUploadFiles={handleUploadFiles}
+                    onDeleteFile={handleDeleteFileFromTree}
+                    onRenameFile={handleRenameFromTree}
+                    onMoveFile={handleMoveFile}
+                    onCreateFileInFolder={handleCreateFileInFolder}
+                    onCreateFolderInFolder={handleCreateFolderInFolder}
+                    repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
+                  />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle className="bg-border hover:bg-primary/50 transition-colors" />
+            </>
+          )}
+
+          {/* Editor Panel */}
+          <ResizablePanel defaultSize={80} minSize={40}>
+            <MarkdownEditor
+              file={content}
+              isLoading={isLoadingContent}
+              isSaving={isSaving}
+              saveStatus={saveStatus}
+              onSave={save}
+              onDelete={content ? () => setIsDeleteDialogOpen(true) : undefined}
+              onRename={content ? () => {
+                setRenameTargetPath("");
+                setIsRenameDialogOpen(true);
+              } : undefined}
+              files={files}
+              onNavigate={handleSelectFile}
+              onUploadImage={handleUploadImage}
+              githubService={service}
+              repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+
+        {/* Mobile Editor */}
+        <main className="flex-1 flex overflow-hidden lg:hidden">
           <MarkdownEditor
             file={content}
             isLoading={isLoadingContent}
