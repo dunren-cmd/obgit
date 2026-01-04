@@ -54,16 +54,14 @@ export function RootFolderDialog({
     }
   }, [service]);
 
+  // 每次開啟對話框時從遠端重新載入目錄
   useEffect(() => {
     if (open) {
       setSelectedFolder(currentRootFolder);
       setCustomPath(currentRootFolder);
-      // 開啟對話框時載入目錄
-      if (folders.length === 0) {
-        loadFolders();
-      }
+      loadFolders();
     }
-  }, [open, currentRootFolder, folders.length, loadFolders]);
+  }, [open, currentRootFolder, loadFolders]);
 
   const handleConfirm = () => {
     onSetRootFolder(selectedFolder);
