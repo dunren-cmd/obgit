@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { FileNode } from "@/lib/github";
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus, Upload, Loader2, MoreHorizontal, Trash2, Edit2, FilePlus, FolderInput } from "lucide-react";
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, RefreshCw, FolderPlus, Upload, Loader2, MoreHorizontal, Trash2, Edit2, FilePlus, FolderInput, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FileIcon } from "@/components/FileIcon";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,23 @@ interface FileTreeProps {
   repoBaseUrl?: string;
 }
 
+// 收集所有資料夾路徑
+const collectFolderPaths = (nodes: FileNode[]): string[] => {
+  const paths: string[] = [];
+  const traverse = (nodeList: FileNode[]) => {
+    for (const node of nodeList) {
+      if (node.type === "dir") {
+        paths.push(node.path);
+        if (node.children) {
+          traverse(node.children);
+        }
+      }
+    }
+  };
+  traverse(nodes);
+  return paths;
+};
+
 export function FileTree({
   files,
   isLoading,
@@ -58,6 +75,30 @@ export function FileTree({
   const [isUploading, setIsUploading] = useState(false);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+
+  const allFolderPaths = useMemo(() => collectFolderPaths(files), [files]);
+  const allExpanded = allFolderPaths.length > 0 && allFolderPaths.every(p => expandedPaths.has(p));
+
+  const handleExpandAll = useCallback(() => {
+    setExpandedPaths(new Set(allFolderPaths));
+  }, [allFolderPaths]);
+
+  const handleCollapseAll = useCallback(() => {
+    setExpandedPaths(new Set());
+  }, []);
+
+  const toggleExpanded = useCallback((path: string) => {
+    setExpandedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -186,6 +227,21 @@ export function FileTree({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {allFolderPaths.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+              title={allExpanded ? "收合全部" : "展開全部"}
+            >
+              {allExpanded ? (
+                <ChevronsDownUp className="w-4 h-4" />
+              ) : (
+                <ChevronsUpDown className="w-4 h-4" />
+              )}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -252,6 +308,8 @@ export function FileTree({
                   dragOverPath={dragOverPath}
                   setDragOverPath={setDragOverPath}
                   setIsUploading={setIsUploading}
+                  expandedPaths={expandedPaths}
+                  toggleExpanded={toggleExpanded}
                 />
               ))}
             </div>
@@ -288,6 +346,8 @@ interface FileTreeNodeProps {
   dragOverPath: string | null;
   setDragOverPath: (path: string | null) => void;
   setIsUploading: (uploading: boolean) => void;
+  expandedPaths: Set<string>;
+  toggleExpanded: (path: string) => void;
 }
 
 // 判斷是否為圖片檔案
@@ -311,17 +371,19 @@ function FileTreeNode({
   dragOverPath,
   setDragOverPath,
   setIsUploading,
+  expandedPaths,
+  toggleExpanded,
 }: FileTreeNodeProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const isSelected = selectedPath === node.path;
   const isDir = node.type === "dir";
   const isImage = !isDir && isImageFile(node.name);
   const isDragOver = dragOverPath === node.path && isDir;
+  const isExpanded = expandedPaths.has(node.path);
 
   const handleClick = () => {
     if (isDir) {
-      setIsExpanded(!isExpanded);
+      toggleExpanded(node.path);
     } else {
       onSelectFile(node.path);
     }
@@ -579,6 +641,8 @@ function FileTreeNode({
               dragOverPath={dragOverPath}
               setDragOverPath={setDragOverPath}
               setIsUploading={setIsUploading}
+              expandedPaths={expandedPaths}
+              toggleExpanded={toggleExpanded}
             />
           ))}
         </div>
