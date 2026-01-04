@@ -25,11 +25,38 @@ export class GitHubService {
   private octokit: Octokit;
   private owner: string;
   private repo: string;
+  
+  // 快取機制
+  private fileContentCache: Map<string, { content: FileContent; timestamp: number }> = new Map();
+  private fileTreeCache: { tree: FileNode[]; timestamp: number } | null = null;
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 分鐘快取
 
   constructor(config: GitHubConfig) {
     this.octokit = new Octokit({ auth: config.token });
     this.owner = config.owner;
     this.repo = config.repo;
+  }
+
+  /**
+   * 清除快取
+   */
+  clearCache(): void {
+    this.fileContentCache.clear();
+    this.fileTreeCache = null;
+  }
+
+  /**
+   * 使快取的檔案內容失效
+   */
+  invalidateFileCache(path: string): void {
+    this.fileContentCache.delete(path);
+  }
+
+  /**
+   * 使檔案樹快取失效
+   */
+  invalidateTreeCache(): void {
+    this.fileTreeCache = null;
   }
 
   /**
@@ -49,48 +76,44 @@ export class GitHubService {
   }
 
   /**
-   * 獲取儲存庫內容（遞迴）
+   * 使用 Git Trees API 一次性獲取完整目錄結構（優化版本）
    */
   async getRepoContent(path: string = ""): Promise<FileNode[]> {
+    // 檢查快取
+    if (this.fileTreeCache && Date.now() - this.fileTreeCache.timestamp < this.CACHE_TTL) {
+      if (path === "") {
+        return this.fileTreeCache.tree;
+      }
+      // 如果請求子路徑，從快取的樹中提取
+      return this.getSubtreeFromCache(path) || [];
+    }
+
     try {
-      const response = await this.octokit.rest.repos.getContent({
+      // 獲取預設分支
+      const repoInfo = await this.octokit.rest.repos.get({
         owner: this.owner,
         repo: this.repo,
-        path,
+      });
+      const defaultBranch = repoInfo.data.default_branch;
+
+      // 使用 Git Trees API 一次性獲取完整目錄結構
+      const treeResponse = await this.octokit.rest.git.getTree({
+        owner: this.owner,
+        repo: this.repo,
+        tree_sha: defaultBranch,
+        recursive: "1", // 遞迴獲取所有檔案
       });
 
-      if (!Array.isArray(response.data)) {
-        return [];
+      // 將扁平結構轉換為樹狀結構
+      const tree = this.buildTreeFromFlatList(treeResponse.data.tree);
+      
+      // 更新快取
+      this.fileTreeCache = { tree, timestamp: Date.now() };
+
+      if (path === "") {
+        return tree;
       }
-
-      const nodes: FileNode[] = [];
-
-      for (const item of response.data) {
-        const node: FileNode = {
-          name: item.name,
-          path: item.path,
-          type: item.type as "file" | "dir",
-          sha: item.sha,
-        };
-
-        if (item.type === "dir") {
-          // 遞迴獲取子目錄內容
-          node.children = await this.getRepoContent(item.path);
-          // 只添加有內容的目錄
-          if (node.children.length > 0) {
-            nodes.push(node);
-          }
-        } else {
-          nodes.push(node);
-        }
-      }
-
-      // 排序：目錄優先，然後按名稱排序
-      return nodes.sort((a, b) => {
-        if (a.type === "dir" && b.type === "file") return -1;
-        if (a.type === "file" && b.type === "dir") return 1;
-        return a.name.localeCompare(b.name);
-      });
+      return this.getSubtreeFromCache(path) || [];
     } catch (error: any) {
       if (error.status === 404) {
         return [];
@@ -100,9 +123,105 @@ export class GitHubService {
   }
 
   /**
-   * 獲取檔案內容
+   * 從快取的樹中獲取子樹
    */
-  async getFileContent(path: string): Promise<FileContent> {
+  private getSubtreeFromCache(path: string): FileNode[] | null {
+    if (!this.fileTreeCache) return null;
+    
+    const parts = path.split("/").filter(Boolean);
+    let current: FileNode[] = this.fileTreeCache.tree;
+    
+    for (const part of parts) {
+      const found = current.find(node => node.name === part && node.type === "dir");
+      if (!found || !found.children) return null;
+      current = found.children;
+    }
+    
+    return current;
+  }
+
+  /**
+   * 將 GitHub API 返回的扁平列表轉換為樹狀結構
+   */
+  private buildTreeFromFlatList(items: { path?: string; type?: string; sha?: string }[]): FileNode[] {
+    const root: FileNode[] = [];
+    const nodeMap = new Map<string, FileNode>();
+
+    // 過濾並排序項目
+    const sortedItems = items
+      .filter(item => item.path && (item.type === "blob" || item.type === "tree"))
+      .sort((a, b) => (a.path || "").localeCompare(b.path || ""));
+
+    for (const item of sortedItems) {
+      if (!item.path) continue;
+
+      const parts = item.path.split("/");
+      const name = parts[parts.length - 1];
+      const parentPath = parts.slice(0, -1).join("/");
+      const type = item.type === "tree" ? "dir" : "file";
+
+      const node: FileNode = {
+        name,
+        path: item.path,
+        type,
+        sha: item.sha,
+        children: type === "dir" ? [] : undefined,
+      };
+
+      nodeMap.set(item.path, node);
+
+      if (parentPath === "") {
+        root.push(node);
+      } else {
+        const parent = nodeMap.get(parentPath);
+        if (parent && parent.children) {
+          parent.children.push(node);
+        }
+      }
+    }
+
+    // 遞迴排序每個層級
+    const sortNodes = (nodes: FileNode[]): FileNode[] => {
+      return nodes.sort((a, b) => {
+        if (a.type === "dir" && b.type === "file") return -1;
+        if (a.type === "file" && b.type === "dir") return 1;
+        return a.name.localeCompare(b.name);
+      }).map(node => {
+        if (node.children && node.children.length > 0) {
+          node.children = sortNodes(node.children);
+        }
+        return node;
+      });
+    };
+
+    // 移除空目錄
+    const removeEmptyDirs = (nodes: FileNode[]): FileNode[] => {
+      return nodes.filter(node => {
+        if (node.type === "dir") {
+          if (node.children) {
+            node.children = removeEmptyDirs(node.children);
+          }
+          return node.children && node.children.length > 0;
+        }
+        return true;
+      });
+    };
+
+    return removeEmptyDirs(sortNodes(root));
+  }
+
+  /**
+   * 獲取檔案內容（帶快取）
+   */
+  async getFileContent(path: string, skipCache: boolean = false): Promise<FileContent> {
+    // 檢查快取
+    if (!skipCache) {
+      const cached = this.fileContentCache.get(path);
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        return cached.content;
+      }
+    }
+
     try {
       const response = await this.octokit.rest.repos.getContent({
         owner: this.owner,
@@ -116,12 +235,17 @@ export class GitHubService {
 
       const content = atob(response.data.content.replace(/\n/g, ""));
       
-      return {
+      const fileContent: FileContent = {
         content: decodeURIComponent(escape(content)),
         sha: response.data.sha,
         path: response.data.path,
         name: response.data.name,
       };
+
+      // 更新快取
+      this.fileContentCache.set(path, { content: fileContent, timestamp: Date.now() });
+
+      return fileContent;
     } catch (error: any) {
       if (error.status === 404) {
         // 新檔案
@@ -208,8 +332,22 @@ export class GitHubService {
         sha: currentSha || undefined,
       });
 
+      const newSha = response.data.content?.sha || "";
+
+      // 更新快取中的檔案內容
+      const fileContent: FileContent = {
+        content,
+        sha: newSha,
+        path,
+        name: path.split("/").pop() || path,
+      };
+      this.fileContentCache.set(path, { content: fileContent, timestamp: Date.now() });
+      
+      // 使檔案樹快取失效（因為可能是新檔案）
+      this.invalidateTreeCache();
+
       return {
-        sha: response.data.content?.sha || "",
+        sha: newSha,
         committed: true,
       };
     } catch (error: any) {
@@ -230,6 +368,11 @@ export class GitHubService {
         message: `刪除 ${path.split("/").pop()} via Web`,
         sha,
       });
+      
+      // 清除快取
+      this.invalidateFileCache(path);
+      this.invalidateTreeCache();
+      
       return true;
     } catch (error) {
       console.error("刪除檔案失敗:", error);
