@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { FileNode, GitHubService } from "@/lib/github";
+import { GitHubService } from "@/lib/github";
 import {
   Dialog,
   DialogContent,
@@ -32,18 +32,21 @@ export function RootFolderDialog({
 }: RootFolderDialogProps) {
   const [selectedFolder, setSelectedFolder] = useState(currentRootFolder);
   const [customPath, setCustomPath] = useState("");
-  const [folders, setFolders] = useState<{ path: string; name: string; level: number }[]>([]);
+  const [folders, setFolders] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 載入目錄列表
+  // 載入第一層目錄列表
   const loadFolders = useCallback(async () => {
     if (!service) return;
     
     setIsLoading(true);
     try {
       const tree = await service.getRepoContent();
-      const allFolders = getAllFolders(tree);
-      setFolders(allFolders);
+      // 只取第一層目錄
+      const topLevelFolders = tree
+        .filter(item => item.type === "dir")
+        .map(item => item.name);
+      setFolders(topLevelFolders);
     } catch (error) {
       console.error("載入目錄失敗:", error);
     } finally {
@@ -61,22 +64,6 @@ export function RootFolderDialog({
       }
     }
   }, [open, currentRootFolder, folders.length, loadFolders]);
-
-  // 遞迴取得所有資料夾
-  const getAllFolders = (nodes: FileNode[], parentPath: string = ""): { path: string; name: string; level: number }[] => {
-    const result: { path: string; name: string; level: number }[] = [];
-    const level = parentPath ? parentPath.split("/").length : 0;
-
-    for (const node of nodes) {
-      if (node.type === "dir") {
-        result.push({ path: node.path, name: node.name, level });
-        if (node.children) {
-          result.push(...getAllFolders(node.children, node.path));
-        }
-      }
-    }
-    return result;
-  };
 
   const handleConfirm = () => {
     onSetRootFolder(selectedFolder);
@@ -163,20 +150,19 @@ export function RootFolderDialog({
                       <span className="font-medium">/ （顯示全部）</span>
                     </button>
 
-                    {folders.map((folder) => (
+                    {folders.map((folderName) => (
                       <button
-                        key={folder.path}
-                        onClick={() => handleSelectFolder(folder.path)}
+                        key={folderName}
+                        onClick={() => handleSelectFolder(folderName)}
                         className={cn(
                           "w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
-                          selectedFolder === folder.path
+                          selectedFolder === folderName
                             ? "bg-primary text-primary-foreground"
                             : "hover:bg-muted"
                         )}
-                        style={{ paddingLeft: `${12 + folder.level * 16}px` }}
                       >
                         <Folder className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{folder.name}</span>
+                        <span className="truncate">{folderName}</span>
                       </button>
                     ))}
                   </>
