@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileContent, FileNode, GitHubService } from "@/lib/github";
-import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Columns, Trash2, ImageIcon, Edit2, Upload, Undo2, Redo2, RefreshCw } from "lucide-react";
+import { Save, Eye, Edit3, Loader2, Check, AlertCircle, Trash2, ImageIcon, Edit2, Upload, Undo2, Redo2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WikilinkRenderer } from "@/components/WikilinkRenderer";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
@@ -45,13 +45,8 @@ export function MarkdownEditor({
   repoBaseUrl,
 }: MarkdownEditorProps) {
   const [content, setContent] = useState("");
-  // 行動裝置預設使用 edit 模式，桌面預設 split 模式
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      return "edit";
-    }
-    return "split";
-  });
+  // 行動裝置預設使用 edit 模式，桌面預設 edit 模式（不使用分割）
+  const [viewMode, setViewMode] = useState<ViewMode>("edit");
   const [hasChanges, setHasChanges] = useState(false);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -465,7 +460,7 @@ export function MarkdownEditor({
             <ImageIcon className="w-4 h-4" />
           </Button>
 
-          {/* View Mode Toggle - 始終顯示 */}
+          {/* View Mode Toggle - 只保留編輯和預覽 */}
           <div className="flex items-center border border-border rounded-md overflow-hidden">
             <Button
               variant="ghost"
@@ -477,18 +472,6 @@ export function MarkdownEditor({
               )}
             >
               <Edit3 className="w-4 h-4" />
-            </Button>
-            {/* Split - 只在大螢幕顯示 */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setViewMode("split")}
-              className={cn(
-                "hidden md:flex h-8 w-8 p-0 rounded-none border-0",
-                viewMode === "split" && "bg-primary/10 text-primary"
-              )}
-            >
-              <Columns className="w-4 h-4" />
             </Button>
             <Button
               variant="ghost"
@@ -544,14 +527,11 @@ export function MarkdownEditor({
         </div>
       </div>
 
-      {/* Editor / Preview */}
-      <div className="flex-1 overflow-hidden flex">
+      {/* Editor / Preview - 單一欄位 */}
+      <div className="flex-1 overflow-hidden">
         {/* Editor Panel */}
-        {(viewMode === "edit" || viewMode === "split") && (
-          <div className={cn(
-            "flex-1 overflow-hidden flex flex-col",
-            viewMode === "split" && "border-r border-border"
-          )}>
+        {viewMode === "edit" && (
+          <div className="h-full overflow-hidden flex flex-col mobile-editor-panel mobile-no-border">
             {/* Formatting Toolbar */}
             <FormattingToolbar
               textareaRef={textareaRef}
@@ -562,7 +542,7 @@ export function MarkdownEditor({
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="flex-1 w-full resize-none border-0 bg-transparent p-4 sm:p-6 focus:outline-none editor-content text-foreground font-mono text-sm leading-relaxed touch-manipulation"
+              className="flex-1 w-full resize-none border-0 bg-transparent p-4 sm:p-6 focus:outline-none editor-content text-foreground font-mono text-sm leading-relaxed touch-manipulation mobile-scroll"
               placeholder="開始輸入你的筆記..."
               style={{ fontSize: '16px' }} // 防止 iOS 自動縮放
             />
@@ -570,11 +550,8 @@ export function MarkdownEditor({
         )}
 
         {/* Preview Panel */}
-        {(viewMode === "preview" || viewMode === "split") && (
-          <div className={cn(
-            "flex-1 overflow-hidden",
-            viewMode === "split" && "bg-background/50"
-          )}>
+        {viewMode === "preview" && (
+          <div className="h-full overflow-hidden mobile-preview-panel mobile-no-border">
             {isHtmlFile(file.name) ? (
               // HTML 檔案預覽 - 使用 iframe 渲染
               <iframe

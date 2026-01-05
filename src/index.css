@@ -207,4 +207,45 @@
       transform: translateX(0);
     }
   }
+
+  /* Mobile-specific fixes */
+  @media (max-width: 768px) {
+    .mobile-editor-panel {
+      border-right: none !important;
+      background: hsl(var(--editor-background)) !important;
+      box-shadow: none !important;
+    }
+    
+    .mobile-preview-panel {
+      background: hsl(var(--background)) !important;
+      box-shadow: none !important;
+    }
+    
+    /* Prevent unwanted borders on mobile */
+    .mobile-no-border {
+      border: none !important;
+      box-shadow: none !important;
+    }
+    
+    /* Ensure proper touch scrolling */
+    .mobile-scroll {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    
+    /* Remove any blue borders or outlines */
+    *:focus {
+      outline: none !important;
+    }
+    
+    /* Prevent any unwanted blue highlights */
+    * {
+      -webkit-tap-highlight-color: transparent !important;
+    }
+    
+    /* Fix any potential blue borders on panels */
+    .border-border {
+      border-color: hsl(var(--border)) !important;
+    }
+  }
 }

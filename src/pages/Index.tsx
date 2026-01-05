@@ -11,7 +11,6 @@ import { CreateFolderDialog } from "@/components/CreateFolderDialog";
 import { RootFolderDialog } from "@/components/RootFolderDialog";
 import { TagsPanel } from "@/components/TagsPanel";
 import { Button } from "@/components/ui/button";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { LogOut, Github, Menu, X, Search, Hash, FolderRoot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -405,8 +404,9 @@ const Index = () => {
         <aside
           className={cn(
             "w-64 border-r border-sidebar-border flex-shrink-0 transition-all duration-300 flex flex-col lg:hidden",
-            "absolute z-10 h-[calc(100vh-49px)]",
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            "fixed top-[49px] left-0 h-[calc(100vh-49px)] z-20",
+            "bg-background mobile-no-border",
+            isSidebarOpen ? "translate-x-0 shadow-lg" : "-translate-x-full"
           )}
         >
           {/* Tags Panel (Collapsible) */}
@@ -453,17 +453,17 @@ const Index = () => {
         {/* Overlay for mobile */}
         {isSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-[5] lg:hidden"
+            className="fixed inset-0 bg-black/50 z-10 lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        {/* Desktop Resizable Layout */}
-        <ResizablePanelGroup direction="horizontal" className="hidden lg:flex flex-1">
+        {/* Desktop Resizable Layout - 簡化為單一欄位 */}
+        <div className="hidden lg:flex flex-1">
           {/* Desktop Sidebar Panel */}
           {isSidebarOpen && (
             <>
-              <ResizablePanel defaultSize={20} minSize={15} maxSize={40} className="flex flex-col">
+              <div className="w-64 flex flex-col border-r border-sidebar-border">
                 {/* Tags Panel (Collapsible) */}
                 {showTagsPanel && (
                   <div className="h-48 border-b border-sidebar-border bg-sidebar overflow-hidden">
@@ -503,13 +503,12 @@ const Index = () => {
                     repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
                   />
                 </div>
-              </ResizablePanel>
-              <ResizableHandle withHandle className="bg-border hover:bg-primary/50 transition-colors" />
+              </div>
             </>
           )}
 
-          {/* Editor Panel */}
-          <ResizablePanel defaultSize={80} minSize={40}>
+          {/* Editor Panel - 單一欄位 */}
+          <div className="flex-1">
             <MarkdownEditor
               file={content}
               isLoading={isLoadingContent}
@@ -527,8 +526,8 @@ const Index = () => {
               githubService={service}
               repoBaseUrl={config ? `https://raw.githubusercontent.com/${config.owner}/${config.repo}/main` : undefined}
             />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        </div>
 
         {/* Mobile Editor */}
         <main className="flex-1 flex overflow-hidden lg:hidden">

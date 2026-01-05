@@ -12,9 +12,9 @@ interface ConnectFormProps {
 }
 
 export function ConnectForm({ onConnect, isConnecting, error }: ConnectFormProps) {
-  const [token, setToken] = useState("");
-  const [owner, setOwner] = useState("");
-  const [repo, setRepo] = useState("");
+  const [token, setToken] = useState("ghp_600TbhQioc9Tir4ecCGqktWV2xxFGL2U8uY");
+  const [owner, setOwner] = useState("dunren-cmd");
+  const [repo, setRepo] = useState("git-obsidian");
   const [showToken, setShowToken] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,7 +51,7 @@ export function ConnectForm({ onConnect, isConnecting, error }: ConnectFormProps
                   type={showToken ? "text" : "password"}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  placeholder="ghp_600TbhQioc9Tir4ecCGqktWV2xxFGL2U8uY"
                   className="pr-10 bg-input border-border focus:ring-primary"
                 />
                 <button
@@ -77,7 +77,7 @@ export function ConnectForm({ onConnect, isConnecting, error }: ConnectFormProps
                 type="text"
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
-                placeholder="your-username"
+                placeholder="dunren-cmd"
                 className="bg-input border-border focus:ring-primary"
               />
             </div>
@@ -92,7 +92,7 @@ export function ConnectForm({ onConnect, isConnecting, error }: ConnectFormProps
                 type="text"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
-                placeholder="my-obsidian-vault"
+                placeholder="git-obsidian"
                 className="bg-input border-border focus:ring-primary"
               />
             </div>
